@@ -26,6 +26,10 @@ All notable project changes are recorded in this file.
 - Wired the two-argument PPM P6 command through the scalar bicubic baseline.
 - Added explicit raw RGB8 processing with required dimensions and stable CLI exit statuses.
 - Added standard-library end-to-end CLI tests for PPM, raw RGB8, malformed input, dimensions, and exit codes.
+- Added deterministic non-recursive PPM batch processing with output creation and unrelated-file skipping.
+- Added non-overwriting batch output policy, ordered failure reporting, and partial-failure continuation.
+- Added centralized processing-only timing around algorithm execution without normal timing output.
+- Added provisional batch assumption A-007 and standard-library batch integration tests.
 
 ### Fixed
 

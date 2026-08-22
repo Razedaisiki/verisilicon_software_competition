@@ -36,7 +36,14 @@ These assumptions enable implementation planning before all committee package de
 
 - Provisional rule: initial performance measurements exclude process startup and file I/O. They include conversion from decoded RGB8, required pipeline allocation, super-resolution processing, and production of the in-memory RGB8 output.
 - Reason: this isolates algorithm performance while the official timing API and platform are missing.
-- Replacement boundary: centralize timing boundaries in the benchmark harness. Add the official measurement path without deleting diagnostic sub-measurements.
+- Replacement boundary: keep the timing boundary centralized around the algorithm call. Add the official measurement path without deleting diagnostic sub-measurements.
+
+## A-007: Batch processing is non-recursive and non-overwriting
+
+- Provisional rule: batch mode selects only regular files in the input directory whose extension is ASCII case-insensitively equal to `.ppm`. It does not recurse. Candidates are processed in deterministic filename order, unrelated entries are skipped, filenames are preserved, and the output directory is created when candidates exist.
+- Failure rule: existing outputs are never overwritten. Processing continues after per-file failures, diagnostics retain candidate order, and the command fails if any candidate fails. Success requires at least one completed PPM file and no failures. An input directory with no candidates is an error.
+- Reason: these rules provide deterministic and recoverable behavior while official batch details are missing.
+- Replacement boundary: isolate discovery, ordering, overwrite, continuation, and status policies in the batch coordinator. Replace them together if the committee package defines different behavior.
 
 ## Change control
 

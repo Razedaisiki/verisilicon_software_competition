@@ -1,18 +1,20 @@
 //! Testable command-line routing and baseline processing.
 
 use crate::algorithm::{BicubicBaseline, SuperResolution};
+use crate::image::Image;
 use crate::io::ppm::PpmP6Codec;
 use crate::io::raw::RawRgb8Codec;
 use crate::io::{DecodeSpec, ImageDecoder, ImageEncoder, ImageFormat};
 use crate::spec::{Dimensions, ProcessingConfig};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 pub const EXIT_SUCCESS: u8 = 0;
 pub const EXIT_USAGE: u8 = 2;
-pub const EXIT_NOT_IMPLEMENTED: u8 = 3;
 pub const EXIT_PROCESSING: u8 = 4;
 
 pub const USAGE: &str = "Usage:\n  sr <input.ppm> <output.ppm>\n  sr --raw-rgb8 <width> <height> <input.raw> <output.raw>\n  sr --batch <in_dir> <out_dir>\n  sr --help";
@@ -58,17 +60,25 @@ where
         Command::Batch {
             input_dir,
             output_dir,
-        } => {
-            let _ = writeln!(
-                stderr,
-                "Error: batch processing is not implemented yet: {} -> {}",
-                input_dir.display(),
-                output_dir.display()
-            );
-            EXIT_NOT_IMPLEMENTED
-        }
+        } => match process_batch(&input_dir, &output_dir) {
+            Ok(report) => {
+                let _processing_time = report.processing_time;
+                for failure in &report.failures {
+                    let _ = writeln!(stderr, "Error: {failure}");
+                }
+                if report.succeeded > 0 && report.failures.is_empty() {
+                    EXIT_SUCCESS
+                } else {
+                    EXIT_PROCESSING
+                }
+            }
+            Err(error) => {
+                let _ = writeln!(stderr, "Error: {error}");
+                EXIT_PROCESSING
+            }
+        },
         Command::Ppm { input, output } => match process_ppm(&input, &output) {
-            Ok(()) => EXIT_SUCCESS,
+            Ok(_processing_time) => EXIT_SUCCESS,
             Err(error) => {
                 let _ = writeln!(stderr, "Error: {error}");
                 EXIT_PROCESSING
@@ -79,7 +89,7 @@ where
             input,
             output,
         } => match process_raw_rgb8(dimensions, &input, &output) {
-            Ok(()) => EXIT_SUCCESS,
+            Ok(_processing_time) => EXIT_SUCCESS,
             Err(error) => {
                 let _ = writeln!(stderr, "Error: {error}");
                 EXIT_PROCESSING
@@ -128,7 +138,7 @@ fn parse_dimension(value: &OsStr, name: &str) -> Result<u32, String> {
         .map_err(|_| format!("{name} must be an unsigned decimal integer"))
 }
 
-fn process_ppm(input: &Path, output: &Path) -> Result<(), CliError> {
+fn process_ppm(input: &Path, output: &Path) -> Result<Duration, CliError> {
     let codec = PpmP6Codec::new();
     let image = codec.decode(
         input,
@@ -137,13 +147,16 @@ fn process_ppm(input: &Path, output: &Path) -> Result<(), CliError> {
             dimensions: None,
         },
     )?;
-    let config = ProcessingConfig::new(image.dimensions());
-    let scaled = BicubicBaseline::new().process(&image, config)?;
-    codec.encode(output, ImageFormat::PpmP6, &scaled)?;
-    Ok(())
+    let timed = process_baseline(&image)?;
+    codec.encode(output, ImageFormat::PpmP6, &timed.image)?;
+    Ok(timed.processing_time)
 }
 
-fn process_raw_rgb8(dimensions: Dimensions, input: &Path, output: &Path) -> Result<(), CliError> {
+fn process_raw_rgb8(
+    dimensions: Dimensions,
+    input: &Path,
+    output: &Path,
+) -> Result<Duration, CliError> {
     let codec = RawRgb8Codec::new();
     let image = codec.decode(
         input,
@@ -152,16 +165,124 @@ fn process_raw_rgb8(dimensions: Dimensions, input: &Path, output: &Path) -> Resu
             dimensions: Some(dimensions),
         },
     )?;
+    let timed = process_baseline(&image)?;
+    codec.encode(output, ImageFormat::RawRgb8, &timed.image)?;
+    Ok(timed.processing_time)
+}
+
+fn process_baseline(image: &Image) -> Result<TimedImage, CliError> {
     let config = ProcessingConfig::new(image.dimensions());
-    let scaled = BicubicBaseline::new().process(&image, config)?;
-    codec.encode(output, ImageFormat::RawRgb8, &scaled)?;
-    Ok(())
+    let start = Instant::now();
+    let output = BicubicBaseline::new().process(image, config)?;
+    let processing_time = start.elapsed();
+    Ok(TimedImage {
+        image: output,
+        processing_time,
+    })
+}
+
+fn process_batch(input_dir: &Path, output_dir: &Path) -> Result<BatchReport, CliError> {
+    let entries = fs::read_dir(input_dir).map_err(|error| {
+        CliError::File(format!(
+            "failed to read input directory {}: {error}",
+            input_dir.display()
+        ))
+    })?;
+    let mut candidates = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            CliError::File(format!(
+                "failed to read an entry in {}: {error}",
+                input_dir.display()
+            ))
+        })?;
+        let file_type = entry.file_type().map_err(|error| {
+            CliError::File(format!(
+                "failed to inspect {}: {error}",
+                entry.path().display()
+            ))
+        })?;
+        if file_type.is_file() && has_ppm_extension(&entry.path()) {
+            candidates.push(entry.path());
+        }
+    }
+    candidates.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+    if candidates.is_empty() {
+        return Err(CliError::NoPpmCandidates(input_dir.to_path_buf()));
+    }
+
+    fs::create_dir_all(output_dir).map_err(|error| {
+        CliError::File(format!(
+            "failed to create output directory {}: {error}",
+            output_dir.display()
+        ))
+    })?;
+    let mut report = BatchReport::default();
+    for input in candidates {
+        let file_name = input
+            .file_name()
+            .ok_or_else(|| CliError::File("batch candidate has no filename".to_owned()))?;
+        let output = output_dir.join(file_name);
+        match output.try_exists() {
+            Ok(true) => {
+                report.failures.push(format!(
+                    "{}: refusing to overwrite existing output {}",
+                    input.display(),
+                    output.display()
+                ));
+                continue;
+            }
+            Ok(false) => {}
+            Err(error) => {
+                report.failures.push(format!(
+                    "{}: failed to inspect output {}: {error}",
+                    input.display(),
+                    output.display()
+                ));
+                continue;
+            }
+        }
+        match process_ppm(&input, &output) {
+            Ok(processing_time) => {
+                report.succeeded += 1;
+                report.processing_time = report
+                    .processing_time
+                    .checked_add(processing_time)
+                    .ok_or(CliError::TimingOverflow)?;
+            }
+            Err(error) => report
+                .failures
+                .push(format!("{}: {error}", input.display())),
+        }
+    }
+    Ok(report)
+}
+
+fn has_ppm_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(OsStr::to_str)
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("ppm"))
+}
+
+struct TimedImage {
+    image: Image,
+    processing_time: Duration,
+}
+
+#[derive(Default)]
+struct BatchReport {
+    succeeded: usize,
+    failures: Vec<String>,
+    processing_time: Duration,
 }
 
 #[derive(Debug)]
 enum CliError {
     ImageIo(crate::io::ImageIoError),
     Algorithm(crate::algorithm::AlgorithmError),
+    File(String),
+    NoPpmCandidates(PathBuf),
+    TimingOverflow,
 }
 
 impl fmt::Display for CliError {
@@ -169,6 +290,11 @@ impl fmt::Display for CliError {
         match self {
             Self::ImageIo(error) => error.fmt(formatter),
             Self::Algorithm(error) => error.fmt(formatter),
+            Self::File(message) => formatter.write_str(message),
+            Self::NoPpmCandidates(path) => {
+                write!(formatter, "no PPM candidates found in {}", path.display())
+            }
+            Self::TimingOverflow => formatter.write_str("aggregate processing time overflow"),
         }
     }
 }
@@ -187,7 +313,7 @@ impl From<crate::algorithm::AlgorithmError> for CliError {
 
 #[cfg(test)]
 mod tests {
-    use super::{EXIT_NOT_IMPLEMENTED, EXIT_PROCESSING, EXIT_SUCCESS, EXIT_USAGE, run};
+    use super::{EXIT_PROCESSING, EXIT_SUCCESS, EXIT_USAGE, run};
     use crate::io::ppm::PpmP6Codec;
     use std::ffi::OsString;
     use std::fs;
@@ -204,6 +330,24 @@ mod tests {
             sequence,
             extension
         ))
+    }
+
+    fn temporary_directory(label: &str) -> PathBuf {
+        let sequence = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "verisilicon_sr_batch_{}_{}_{}",
+            std::process::id(),
+            sequence,
+            label
+        ));
+        fs::create_dir(&path).unwrap();
+        path
+    }
+
+    fn write_ppm(path: &std::path::Path, rgb: [u8; 3]) {
+        let mut data = b"P6\n1 1\n255\n".to_vec();
+        data.extend_from_slice(&rgb);
+        fs::write(path, data).unwrap();
     }
 
     fn invoke(args: &[OsString]) -> (u8, Vec<u8>, Vec<u8>) {
@@ -273,17 +417,101 @@ mod tests {
     }
 
     #[test]
-    fn help_usage_and_batch_exit_codes_are_stable() {
+    fn help_and_usage_exit_codes_are_stable() {
         assert_eq!(invoke(&[OsString::from("--help")]).0, EXIT_SUCCESS);
         assert_eq!(invoke(&[]).0, EXIT_USAGE);
-        assert_eq!(
-            invoke(&[
+    }
+
+    #[test]
+    fn batch_sorts_candidates_skips_unrelated_files_and_is_deterministic() {
+        let input = temporary_directory("sorted_input");
+        let output_one = input.with_extension("output_one");
+        let output_two = input.with_extension("output_two");
+        write_ppm(&input.join("b.ppm"), [40, 50, 60]);
+        write_ppm(&input.join("A.PPM"), [10, 20, 30]);
+        fs::write(input.join("notes.txt"), b"ignored").unwrap();
+        fs::create_dir(input.join("nested")).unwrap();
+        write_ppm(&input.join("nested").join("nested.ppm"), [1, 2, 3]);
+
+        for output in [&output_one, &output_two] {
+            let (status, _, stderr) = invoke(&[
                 OsString::from("--batch"),
-                OsString::from("input"),
-                OsString::from("output"),
-            ])
-            .0,
-            EXIT_NOT_IMPLEMENTED
+                input.as_os_str().to_owned(),
+                output.as_os_str().to_owned(),
+            ]);
+            assert_eq!(status, EXIT_SUCCESS, "{}", String::from_utf8_lossy(&stderr));
+            assert!(output.join("A.PPM").is_file());
+            assert!(output.join("b.ppm").is_file());
+            assert!(!output.join("notes.txt").exists());
+            assert!(!output.join("nested").exists());
+        }
+        assert_eq!(
+            fs::read(output_one.join("A.PPM")).unwrap(),
+            fs::read(output_two.join("A.PPM")).unwrap()
         );
+        assert_eq!(
+            fs::read(output_one.join("b.ppm")).unwrap(),
+            fs::read(output_two.join("b.ppm")).unwrap()
+        );
+        fs::remove_dir_all(input).unwrap();
+        fs::remove_dir_all(output_one).unwrap();
+        fs::remove_dir_all(output_two).unwrap();
+    }
+
+    #[test]
+    fn batch_rejects_no_candidates_with_stable_status() {
+        let input = temporary_directory("empty_input");
+        let output = input.with_extension("empty_output");
+        fs::write(input.join("readme.txt"), b"ignored").unwrap();
+        let (status, _, stderr) = invoke(&[
+            OsString::from("--batch"),
+            input.as_os_str().to_owned(),
+            output.as_os_str().to_owned(),
+        ]);
+        assert_eq!(status, EXIT_PROCESSING);
+        assert!(String::from_utf8_lossy(&stderr).contains("no PPM candidates"));
+        assert!(!output.exists());
+        fs::remove_dir_all(input).unwrap();
+    }
+
+    #[test]
+    fn batch_refuses_existing_output_without_replacement() {
+        let input = temporary_directory("existing_input");
+        let output = input.with_extension("existing_output");
+        fs::create_dir(&output).unwrap();
+        write_ppm(&input.join("frame.ppm"), [1, 2, 3]);
+        fs::write(output.join("frame.ppm"), b"keep").unwrap();
+        let (status, _, stderr) = invoke(&[
+            OsString::from("--batch"),
+            input.as_os_str().to_owned(),
+            output.as_os_str().to_owned(),
+        ]);
+        assert_eq!(status, EXIT_PROCESSING);
+        assert!(String::from_utf8_lossy(&stderr).contains("refusing to overwrite"));
+        assert_eq!(fs::read(output.join("frame.ppm")).unwrap(), b"keep");
+        fs::remove_dir_all(input).unwrap();
+        fs::remove_dir_all(output).unwrap();
+    }
+
+    #[test]
+    fn batch_continues_after_failures_and_reports_them_in_order() {
+        let input = temporary_directory("partial_input");
+        let output = input.with_extension("partial_output");
+        fs::write(input.join("a.ppm"), b"bad a").unwrap();
+        write_ppm(&input.join("b.ppm"), [90, 100, 110]);
+        fs::write(input.join("c.PPM"), b"bad c").unwrap();
+        let (status, _, stderr) = invoke(&[
+            OsString::from("--batch"),
+            input.as_os_str().to_owned(),
+            output.as_os_str().to_owned(),
+        ]);
+        assert_eq!(status, EXIT_PROCESSING);
+        assert!(output.join("b.ppm").is_file());
+        let diagnostics = String::from_utf8(stderr).unwrap();
+        let first = diagnostics.find("a.ppm").unwrap();
+        let second = diagnostics.find("c.PPM").unwrap();
+        assert!(first < second);
+        fs::remove_dir_all(input).unwrap();
+        fs::remove_dir_all(output).unwrap();
     }
 }

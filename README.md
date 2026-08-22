@@ -45,7 +45,11 @@ sr --help
 
 The official two-argument command decodes strict RGB8 PPM P6, scales it by 2x with `BicubicBaseline`, and writes deterministic PPM P6 output. The explicit raw command uses provisional assumption A-002: packed row-major RGB8 in R, G, B order with no header or row padding. Raw dimensions are mandatory.
 
-Batch syntax is recognized but returns exit status 3 until milestone 7. Invalid arguments return status 2, processing failures return status 4, and successful commands return status 0. Output files follow standard replacement behavior.
+Batch mode processes non-recursive regular PPM files in deterministic filename order, accepts `.ppm` case-insensitively, creates the output directory, preserves filenames, and skips unrelated entries. It refuses every existing output, continues after per-file failures, and returns status 4 if any file fails or no candidates exist. These semantics are provisional assumption A-007.
+
+Invalid arguments return status 2, processing failures return status 4, and successful commands return status 0. Single-file commands retain standard output replacement behavior.
+
+Processing-only timing follows provisional assumption A-006. Timing starts immediately before the algorithm call and stops immediately after it, excluding decode and encode. Normal commands do not print timing values.
 
 `QualityPipeline` remains an opt-in library API and is not selected by the CLI.
 

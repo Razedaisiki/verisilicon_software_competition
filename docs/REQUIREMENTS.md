@@ -45,6 +45,7 @@ These interfaces are planning defaults, not official facts. Their definitions an
 | A-004 | The public processing scale is fixed at 2x. | Provisional | Software scope |
 | A-005 | The local bicubic admission baseline uses cubic parameter `a = -0.5`. | Provisional | Project planning |
 | A-006 | Initial performance measurement uses a processing-only timing boundary. | Provisional | Project planning |
+| A-007 | Batch mode is non-recursive, deterministically ordered, and refuses existing outputs. | Provisional | Project planning |
 
 ## Missing official package details
 
