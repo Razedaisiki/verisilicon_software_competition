@@ -42,6 +42,9 @@ All notable project changes are recorded in this file.
 - Added bounded three-channel standard-library execution with an automatic size and available-parallelism policy.
 - Added stable spawn-failure and worker-panic algorithm errors with join-all scoped-thread handling.
 - Added forced serial/parallel oracle equality tests and local two-resolution threading measurements.
+- Added local 1920x1080 processing evidence for the provisional 1 FPS target.
+- Documented compiler assembly inspection and the evidence-gated decision to defer hand-written SIMD.
+- Added cross-platform CI benchmark policy and checksum verification without timing gates.
 
 ### Fixed
 

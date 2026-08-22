@@ -67,6 +67,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         output_pixels as f64 * f64::from(iterations) / seconds / 1_000_000.0;
 
     println!("mode={mode}");
+    println!(
+        "available_parallelism={}",
+        std::thread::available_parallelism().map_or(1, usize::from)
+    );
     println!("requested_policy={policy}");
     println!(
         "selected_policy={}",

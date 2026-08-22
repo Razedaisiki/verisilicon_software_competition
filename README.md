@@ -75,6 +75,13 @@ and excludes fixture generation and I/O from timing. See
 `docs/PERFORMANCE.md` for memory calculations, local before/after measurements,
 limitations, thread failure semantics, and serial-versus-parallel measurements.
 
+Local 1920x1080-to-3840x2160 measurements exceed the provisional 1 FPS target
+on the documented development host, but they are not official compliance
+evidence. Hand-written SIMD is currently deferred: the official CPU and
+toolchain are unknown, the existing threaded scalar implementation already
+clears the provisional target locally, and an intrinsic path would add unsafe,
+dispatch, and cross-platform validation risk without demonstrated need.
+
 ## Diagnostic quality evaluation
 
 The library exposes provisional luma PSNR and global luma SSIM diagnostics. They use the project's deterministic fixed-point BT.601 luma conversion and require equal image dimensions. Identical luma images have explicit infinite PSNR. These implementations are not claimed to match the missing official scoring tools.

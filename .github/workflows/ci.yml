@@ -43,6 +43,9 @@ jobs:
       - name: Build release binary
         run: cargo build --locked --release
 
+      - name: Verify processing benchmark policies
+        run: python scripts/check_processing_bench.py
+
       - name: Verify one-click build
         if: runner.os == 'Linux'
         run: sh build.sh

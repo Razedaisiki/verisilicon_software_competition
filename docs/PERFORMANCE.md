@@ -97,3 +97,64 @@ All serial and parallel runs produced the same checksum at each resolution:
 `fd3181d6999db271` at 640x360 and `7089b2055a59146d` at 1280x720. These local
 results do not imply a universal speedup; scheduler load, core topology, image
 content, and platform thread costs can change the result.
+
+## Provisional 1 FPS evidence
+
+The 1 FPS requirement remains provisional until the official timing boundary,
+platform, workload, and scoring tools are available. The following is local
+evidence only, not a compliance result.
+
+The host was an AMD Ryzen 5 5500U with Radeon Graphics running 64-bit Windows
+11 version 10.0.26200. `available_parallelism()` reported 12. The build used
+`rustc 1.85.0 (4d91de4e4 2025-02-17)`, the x86_64-pc-windows-msvc target, and
+LLVM 19.1.7. Each release run scaled a deterministic 1920x1080 gradient to
+3840x2160, used Auto policy, performed one unmeasured warm-up, and measured
+three processing-only frames. Auto selected parallel. Five independent process
+runs produced:
+
+| Pipeline | Elapsed totals for three frames (ms) | Reported FPS | Median FPS | Checksum |
+| --- | --- | --- | ---: | --- |
+| Baseline | 494.732, 462.229, 412.661, 539.952, 421.409 | 6.064, 6.490, 7.270, 5.556, 7.119 | 6.490 | `98e3c40731c269e9` |
+| Quality | 729.118, 798.859, 882.504, 819.258, 759.724 | 4.115, 3.755, 3.399, 3.662, 3.949 | 3.755 | `98e3c40731c269e9` |
+
+All runs were above 1 FPS on this host. This does not establish performance on
+the unknown official platform or establish that the provisional timing boundary
+matches the official one.
+
+## SIMD evidence and decision
+
+The current release library was also built with:
+
+```text
+cargo rustc --locked --release --lib -- --emit=asm
+```
+
+Generated assembly remained under ignored `target/` paths. Inspection of the
+emitted `scale_plane_2x` and `enhance_luma` function bodies found scalar byte
+loads and integer arithmetic. The scaler body used XMM only for zeroing or
+moving state; it contained no packed arithmetic. The enhancement body contained
+no XMM, YMM, or ZMM instructions. Therefore this Rust 1.85.0 generic x86_64
+release build provides no evidence that the hot arithmetic loops are
+auto-vectorized. This conclusion is limited to the inspected host, target, and
+compiler configuration.
+
+No hand-written `std::arch` SIMD path is added. The official CPU and toolchain
+are unknown, while a correct implementation would need architecture guards,
+runtime feature detection, scalar fallback, unsafe intrinsic code, exact
+fixed-point equivalence across borders and tails, and Windows and Linux build
+coverage. The existing safe threaded scalar path already exceeds the provisional
+target locally, so those risks are not justified by current evidence.
+
+Reconsider intrinsics if the official CPU/toolchain is specified or if the
+current implementation fails the official target. Any future SIMD path must be
+narrowly dispatched, preserve the scalar fallback, match the scalar oracle
+exactly for all dimensions and tail widths, compile on every CI target, and show
+a material repeatable improvement over Auto threaded scalar processing.
+
+## CI benchmark correctness
+
+`scripts/check_processing_bench.py` runs the release benchmark for both
+pipelines with forced serial and parallel policies on an 8x5 image. It checks
+the requested and selected policies, dimensions, fixed checksums, and exact
+serial/parallel checksum equality. CI does not inspect elapsed time or enforce a
+wall-clock threshold.
