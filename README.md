@@ -2,7 +2,13 @@
 
 This repository is the Rust software-track project for a dependency-free 2x image super-resolution command-line tool.
 
-Milestone 3 provides a buildable Rust 2024 binary and library foundation. It defines checked image dimensions, RGB8 image ownership, replaceable image I/O and algorithm boundaries, and a strict dependency-free PPM P6 codec. Scaling and CLI processing are intentionally not implemented yet.
+Milestone 4 provides a buildable Rust 2024 binary and library foundation. It includes checked image types, a strict PPM P6 codec, deterministic fixed-point BT.601 full-range color conversion, and a scalar separable 2x Catmull-Rom bicubic baseline. CLI processing is intentionally not wired yet.
+
+## Bicubic baseline
+
+The baseline converts RGB8 to full-range YCbCr8 using documented Q8 integer coefficients, scales all three planes, and converts the result back to RGB8. The scaler uses half-pixel mapping and the provisional Catmull-Rom parameter `a = -0.5`.
+
+The two exact Q7 polyphase weight sets are `[-3, 29, 111, -9]` and `[-9, 111, 29, -3]`. Horizontal results remain signed until the vertical pass. Borders are clamped, combined Q14 results are rounded to nearest with halves away from zero, and only final samples are clipped to the 8-bit range.
 
 ## PPM P6 codec
 
@@ -32,7 +38,7 @@ sr --batch <in_dir> <out_dir>
 sr --help
 ```
 
-Processing commands currently return exit status 3 with an English not-implemented message. Invalid arguments return exit status 2. The codec is not wired to these commands yet.
+Processing commands currently return exit status 3 with an English not-implemented message. Invalid arguments return exit status 2. The codec and baseline are not wired to these commands yet.
 
 ## Development checks
 
