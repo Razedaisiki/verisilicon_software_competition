@@ -1,7 +1,9 @@
 //! Deterministic separable 2x Catmull-Rom bicubic baseline.
 
 use super::color::{YCbCr8, rgb_to_ycbcr, ycbcr_to_rgb};
-use super::{AlgorithmError, SuperResolution};
+use super::{
+    AlgorithmError, ExecutionPolicy, SuperResolution, resolve_execution_policy, run_channel_jobs,
+};
 use crate::image::{Image, Rgb8};
 use crate::spec::{Dimensions, ProcessingConfig, Scale, SpecError};
 
@@ -29,6 +31,16 @@ impl BicubicBaseline {
         Self
     }
 
+    /// Processes with an explicit execution policy.
+    pub fn process_with_policy(
+        &self,
+        input: &Image,
+        config: ProcessingConfig,
+        policy: ExecutionPolicy,
+    ) -> Result<Image, AlgorithmError> {
+        process_impl(input, config, scale_plane_2x, policy)
+    }
+
     /// Runs the retained single-thread full-intermediate implementation.
     ///
     /// This path exists as an exact regression oracle for the cached default.
@@ -38,13 +50,18 @@ impl BicubicBaseline {
         input: &Image,
         config: ProcessingConfig,
     ) -> Result<Image, AlgorithmError> {
-        process_impl(input, config, scale_plane_2x_reference)
+        process_impl(
+            input,
+            config,
+            scale_plane_2x_reference,
+            ExecutionPolicy::Serial,
+        )
     }
 }
 
 impl SuperResolution for BicubicBaseline {
     fn process(&self, input: &Image, config: ProcessingConfig) -> Result<Image, AlgorithmError> {
-        process_impl(input, config, scale_plane_2x)
+        self.process_with_policy(input, config, ExecutionPolicy::Auto)
     }
 }
 
@@ -52,6 +69,7 @@ fn process_impl(
     input: &Image,
     config: ProcessingConfig,
     scaler: fn(&[u8], Dimensions) -> Result<Vec<u8>, AlgorithmError>,
+    policy: ExecutionPolicy,
 ) -> Result<Image, AlgorithmError> {
     validate_pipeline(input, config, "bicubic baseline requires 2x scale")?;
     let input_count = input
@@ -69,12 +87,27 @@ fn process_impl(
     }
 
     let dimensions = input.dimensions();
-    let y_scaled = scaler(&y_plane, dimensions)?;
-    drop(y_plane);
-    let cb_scaled = scaler(&cb_plane, dimensions)?;
-    drop(cb_plane);
-    let cr_scaled = scaler(&cr_plane, dimensions)?;
-    drop(cr_plane);
+    let selected = resolve_execution_policy(policy, dimensions);
+    let [y_scaled, cb_scaled, cr_scaled] = if selected == ExecutionPolicy::Serial {
+        let y_scaled = scaler(&y_plane, dimensions)?;
+        drop(y_plane);
+        let cb_scaled = scaler(&cb_plane, dimensions)?;
+        drop(cb_plane);
+        let cr_scaled = scaler(&cr_plane, dimensions)?;
+        drop(cr_plane);
+        [y_scaled, cb_scaled, cr_scaled]
+    } else {
+        let scaled = run_channel_jobs(selected, |channel| match channel {
+            0 => scaler(&y_plane, dimensions),
+            1 => scaler(&cb_plane, dimensions),
+            2 => scaler(&cr_plane, dimensions),
+            _ => unreachable!("channel jobs are limited to three"),
+        })?;
+        drop(y_plane);
+        drop(cb_plane);
+        drop(cr_plane);
+        scaled
+    };
     let output_dimensions = config
         .output_dimensions()
         .map_err(AlgorithmError::InvalidDimensions)?;
@@ -367,8 +400,8 @@ mod tests {
         BicubicBaseline, EVEN_PHASE_WEIGHTS, ODD_PHASE_WEIGHTS, scale_plane_2x,
         scale_plane_2x_reference,
     };
-    use crate::algorithm::{AlgorithmError, SuperResolution};
-    use crate::fixtures::{HardEdge, checker_detail, hard_edge, smooth_gradient};
+    use crate::algorithm::{AlgorithmError, ExecutionPolicy, SuperResolution};
+    use crate::fixtures::{HardEdge, checker_detail, constant, hard_edge, smooth_gradient};
     use crate::image::{Image, Rgb8};
     use crate::spec::{Dimensions, ProcessingConfig};
 
@@ -420,10 +453,15 @@ mod tests {
     }
 
     #[test]
-    fn optimized_pipeline_matches_reference_across_patterns() {
+    fn serial_and_parallel_pipelines_match_reference_exactly() {
         let inputs = [
+            Image::new(dimensions(1, 1), vec![Rgb8::new(19, 37, 83)]).unwrap(),
+            constant(dimensions(3, 5), Rgb8::new(91, 17, 203)).unwrap(),
             smooth_gradient(dimensions(7, 5)).unwrap(),
             hard_edge(dimensions(9, 7), HardEdge::Vertical).unwrap(),
+            hard_edge(dimensions(7, 9), HardEdge::Horizontal).unwrap(),
+            hard_edge(dimensions(1, 7), HardEdge::Horizontal).unwrap(),
+            hard_edge(dimensions(7, 1), HardEdge::Vertical).unwrap(),
             checker_detail(dimensions(5, 9), 2).unwrap(),
         ];
         for input in inputs {
@@ -433,7 +471,15 @@ mod tests {
                 .unwrap();
             for _ in 0..3 {
                 assert_eq!(
-                    BicubicBaseline::new().process(&input, config).unwrap(),
+                    BicubicBaseline::new()
+                        .process_with_policy(&input, config, ExecutionPolicy::Serial)
+                        .unwrap(),
+                    expected
+                );
+                assert_eq!(
+                    BicubicBaseline::new()
+                        .process_with_policy(&input, config, ExecutionPolicy::Parallel)
+                        .unwrap(),
                     expected
                 );
             }

@@ -30,8 +30,8 @@ encode, fixture construction, and reporting are outside the timed interval.
 Run it with:
 
 ```text
-cargo run --locked --release --example processing_bench -- baseline 640 360 5
-cargo run --locked --release --example processing_bench -- quality 640 360 5
+cargo run --locked --release --example processing_bench -- baseline auto 640 360 5
+cargo run --locked --release --example processing_bench -- quality auto 640 360 5
 ```
 
 The output includes elapsed time, throughput, and a deterministic checksum.
@@ -56,8 +56,44 @@ it does not establish performance on other machines or workloads.
 
 ## Threading policy
 
-Processing remains serial. A bounded standard-library row partition was
-evaluated, but scoped worker panics can still unwind the scope after explicit
-joins, so clean failure propagation was not established. Parallel execution is
-deferred until it can preserve exact output and convert every spawn, worker,
-and panic failure into the public error contract without unwinding.
+Automatic execution uses three independent channel branches: Y, Cb, and Cr.
+The quality Y branch performs both scaling and luma enhancement in its worker.
+The cap is three standard-library workers, with no row-level or pixel-level
+thread creation. Automatic parallel execution requires an input of at least
+131,072 pixels and `available_parallelism()` of at least two; otherwise it is
+serial. Explicit serial and parallel policies exist for diagnostics and exact
+regression testing.
+
+Workers are created with `thread::Builder::spawn_scoped`, making a spawn error
+representable as `AlgorithmError::ThreadSpawnFailed`. Every successfully
+spawned handle is explicitly joined before the scope returns, including after
+a partial spawn failure or worker panic. A joined panic becomes
+`AlgorithmError::WorkerPanicked`, so the scope does not unwind and no partial
+image is returned. If failures coincide, the stable precedence is spawn
+failure, worker panic, then a worker-returned algorithm error.
+
+Forced serial and parallel tests compare exact `Image` equality against the
+retained full-intermediate oracle. Coverage includes constants, gradients,
+horizontal and vertical edges, checker detail, odd dimensions, thin images,
+1x1 images, and three repeated runs for both pipelines. Focused collector tests
+inject a panic and a simulated partial spawn failure, verify all successful
+handles complete, and verify the stable public error variants.
+
+## Local threading measurements
+
+The same 2026-08-23 host and processing-only benchmark were used to force both
+policies. Each cell is the median of three process runs. The 640x360 cases use
+five measured frames per run; the 1280x720 cases use three. Elapsed values are
+totals for those frames.
+
+| Input | Pipeline | Serial median | Parallel median | Local median change |
+| --- | --- | ---: | ---: | ---: |
+| 640x360 | Baseline | 149.616 ms | 79.367 ms | 47.0% lower |
+| 640x360 | Quality | 266.046 ms | 155.406 ms | 41.6% lower |
+| 1280x720 | Baseline | 298.495 ms | 182.326 ms | 38.9% lower |
+| 1280x720 | Quality | 504.850 ms | 343.295 ms | 32.0% lower |
+
+All serial and parallel runs produced the same checksum at each resolution:
+`fd3181d6999db271` at 640x360 and `7089b2055a59146d` at 1280x720. These local
+results do not imply a universal speedup; scheduler load, core topology, image
+content, and platform thread costs can change the result.

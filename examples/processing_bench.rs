@@ -5,12 +5,14 @@ use std::error::Error;
 use std::hint::black_box;
 use std::process::ExitCode;
 use std::time::Instant;
-use verisilicon_sr::algorithm::{BicubicBaseline, QualityPipeline, SuperResolution};
+use verisilicon_sr::algorithm::{
+    BicubicBaseline, ExecutionPolicy, QualityPipeline, selected_execution_policy,
+};
 use verisilicon_sr::fixtures::smooth_gradient;
 use verisilicon_sr::image::Image;
 use verisilicon_sr::spec::{Dimensions, ProcessingConfig};
 
-const USAGE: &str = "Usage: processing_bench <baseline|quality> <width> <height> <iterations>";
+const USAGE: &str = "Usage: processing_bench <baseline|quality> <auto|serial|parallel> <width> <height> <iterations>";
 
 fn main() -> ExitCode {
     match run() {
@@ -25,16 +27,22 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
-    if args.len() != 4 {
-        return Err("expected four arguments".into());
+    if args.len() != 5 {
+        return Err("expected five arguments".into());
     }
     let mode = args[0].as_str();
     if mode != "baseline" && mode != "quality" {
         return Err("mode must be baseline or quality".into());
     }
-    let width: u32 = args[1].parse()?;
-    let height: u32 = args[2].parse()?;
-    let iterations: u32 = args[3].parse()?;
+    let policy = match args[1].as_str() {
+        "auto" => ExecutionPolicy::Auto,
+        "serial" => ExecutionPolicy::Serial,
+        "parallel" => ExecutionPolicy::Parallel,
+        _ => return Err("policy must be auto, serial, or parallel".into()),
+    };
+    let width: u32 = args[2].parse()?;
+    let height: u32 = args[3].parse()?;
+    let iterations: u32 = args[4].parse()?;
     if iterations == 0 {
         return Err("iterations must be positive".into());
     }
@@ -44,11 +52,11 @@ fn run() -> Result<(), Box<dyn Error>> {
     let config = ProcessingConfig::new(dimensions);
 
     // Warm-up is deliberately outside the measured processing interval.
-    black_box(process(mode, &input, config)?);
+    black_box(process(mode, &input, config, policy)?);
     let started = Instant::now();
     let mut last = None;
     for _ in 0..iterations {
-        last = Some(black_box(process(mode, black_box(&input), config)?));
+        last = Some(black_box(process(mode, black_box(&input), config, policy)?));
     }
     let elapsed = started.elapsed();
     let output = last.expect("positive iteration count checked above");
@@ -59,6 +67,14 @@ fn run() -> Result<(), Box<dyn Error>> {
         output_pixels as f64 * f64::from(iterations) / seconds / 1_000_000.0;
 
     println!("mode={mode}");
+    println!("requested_policy={policy}");
+    println!(
+        "selected_policy={}",
+        match policy {
+            ExecutionPolicy::Auto => selected_execution_policy(dimensions),
+            forced => forced,
+        }
+    );
     println!("input={}x{}", width, height);
     println!(
         "output={}x{}",
@@ -78,10 +94,11 @@ fn process(
     mode: &str,
     input: &Image,
     config: ProcessingConfig,
+    policy: ExecutionPolicy,
 ) -> Result<Image, verisilicon_sr::algorithm::AlgorithmError> {
     match mode {
-        "baseline" => BicubicBaseline::new().process(input, config),
-        "quality" => QualityPipeline::new().process(input, config),
+        "baseline" => BicubicBaseline::new().process_with_policy(input, config, policy),
+        "quality" => QualityPipeline::new().process_with_policy(input, config, policy),
         _ => unreachable!("mode validated before processing"),
     }
 }

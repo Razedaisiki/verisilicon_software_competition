@@ -4,7 +4,9 @@ use super::bicubic::scale_plane_2x;
 #[cfg(test)]
 use super::bicubic::scale_plane_2x_reference;
 use super::color::{YCbCr8, rgb_to_ycbcr, ycbcr_to_rgb};
-use super::{AlgorithmError, SuperResolution};
+use super::{
+    AlgorithmError, ExecutionPolicy, SuperResolution, resolve_execution_policy, run_channel_jobs,
+};
 use crate::image::{Image, Rgb8};
 use crate::spec::{Dimensions, ProcessingConfig, Scale, SpecError};
 
@@ -43,6 +45,16 @@ impl QualityPipeline {
         Self
     }
 
+    /// Processes with an explicit execution policy.
+    pub fn process_with_policy(
+        &self,
+        input: &Image,
+        config: ProcessingConfig,
+        policy: ExecutionPolicy,
+    ) -> Result<Image, AlgorithmError> {
+        process_impl(input, config, scale_plane_2x, policy)
+    }
+
     /// Runs the retained full-intermediate scalar scaler as an exact oracle.
     #[cfg(test)]
     pub(crate) fn process_reference(
@@ -50,13 +62,18 @@ impl QualityPipeline {
         input: &Image,
         config: ProcessingConfig,
     ) -> Result<Image, AlgorithmError> {
-        process_impl(input, config, scale_plane_2x_reference)
+        process_impl(
+            input,
+            config,
+            scale_plane_2x_reference,
+            ExecutionPolicy::Serial,
+        )
     }
 }
 
 impl SuperResolution for QualityPipeline {
     fn process(&self, input: &Image, config: ProcessingConfig) -> Result<Image, AlgorithmError> {
-        process_impl(input, config, scale_plane_2x)
+        self.process_with_policy(input, config, ExecutionPolicy::Auto)
     }
 }
 
@@ -64,6 +81,7 @@ fn process_impl(
     input: &Image,
     config: ProcessingConfig,
     scaler: fn(&[u8], Dimensions) -> Result<Vec<u8>, AlgorithmError>,
+    policy: ExecutionPolicy,
 ) -> Result<Image, AlgorithmError> {
     if input.dimensions() != config.input_dimensions() {
         return Err(AlgorithmError::DimensionMismatch {
@@ -95,14 +113,32 @@ fn process_impl(
     let output_dimensions = config
         .output_dimensions()
         .map_err(AlgorithmError::InvalidDimensions)?;
-    let y_bicubic = scaler(&y_plane, input_dimensions)?;
-    drop(y_plane);
-    let y_enhanced = enhance_luma(&y_bicubic, output_dimensions)?;
-    drop(y_bicubic);
-    let cb_scaled = scaler(&cb_plane, input_dimensions)?;
-    drop(cb_plane);
-    let cr_scaled = scaler(&cr_plane, input_dimensions)?;
-    drop(cr_plane);
+    let selected = resolve_execution_policy(policy, input_dimensions);
+    let [y_enhanced, cb_scaled, cr_scaled] = if selected == ExecutionPolicy::Serial {
+        let y_bicubic = scaler(&y_plane, input_dimensions)?;
+        drop(y_plane);
+        let y_enhanced = enhance_luma(&y_bicubic, output_dimensions)?;
+        drop(y_bicubic);
+        let cb_scaled = scaler(&cb_plane, input_dimensions)?;
+        drop(cb_plane);
+        let cr_scaled = scaler(&cr_plane, input_dimensions)?;
+        drop(cr_plane);
+        [y_enhanced, cb_scaled, cr_scaled]
+    } else {
+        let scaled = run_channel_jobs(selected, |channel| match channel {
+            0 => {
+                let y_bicubic = scaler(&y_plane, input_dimensions)?;
+                enhance_luma(&y_bicubic, output_dimensions)
+            }
+            1 => scaler(&cb_plane, input_dimensions),
+            2 => scaler(&cr_plane, input_dimensions),
+            _ => unreachable!("channel jobs are limited to three"),
+        })?;
+        drop(y_plane);
+        drop(cb_plane);
+        drop(cr_plane);
+        scaled
+    };
 
     let output_count = output_dimensions
         .pixel_count()
@@ -281,8 +317,8 @@ mod tests {
         EdgeOrientation, QualityPipeline, detect_edge_orientation_unchecked, enhance_luma,
         local_envelope,
     };
-    use crate::algorithm::{BicubicBaseline, SuperResolution};
-    use crate::fixtures::{HardEdge, checker_detail, hard_edge, smooth_gradient};
+    use crate::algorithm::{BicubicBaseline, ExecutionPolicy, SuperResolution};
+    use crate::fixtures::{HardEdge, checker_detail, constant, hard_edge, smooth_gradient};
     use crate::image::{Image, Rgb8};
     use crate::spec::{Dimensions, ProcessingConfig};
 
@@ -366,11 +402,15 @@ mod tests {
     }
 
     #[test]
-    fn optimized_quality_matches_reference_across_patterns_and_sizes() {
+    fn serial_and_parallel_quality_match_reference_exactly() {
         let inputs = [
             Image::new(dimensions(1, 1), vec![Rgb8::new(19, 37, 83)]).unwrap(),
+            constant(dimensions(3, 5), Rgb8::new(91, 17, 203)).unwrap(),
             smooth_gradient(dimensions(7, 5)).unwrap(),
+            hard_edge(dimensions(9, 7), HardEdge::Vertical).unwrap(),
+            hard_edge(dimensions(7, 9), HardEdge::Horizontal).unwrap(),
             hard_edge(dimensions(1, 7), HardEdge::Horizontal).unwrap(),
+            hard_edge(dimensions(7, 1), HardEdge::Vertical).unwrap(),
             checker_detail(dimensions(9, 3), 2).unwrap(),
         ];
         for input in inputs {
@@ -380,7 +420,15 @@ mod tests {
                 .unwrap();
             for _ in 0..3 {
                 assert_eq!(
-                    QualityPipeline::new().process(&input, config).unwrap(),
+                    QualityPipeline::new()
+                        .process_with_policy(&input, config, ExecutionPolicy::Serial)
+                        .unwrap(),
+                    reference
+                );
+                assert_eq!(
+                    QualityPipeline::new()
+                        .process_with_policy(&input, config, ExecutionPolicy::Parallel)
+                        .unwrap(),
                     reference
                 );
             }

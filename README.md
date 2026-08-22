@@ -57,21 +57,23 @@ Processing-only timing follows provisional assumption A-006. Timing starts immed
 
 The scalar bicubic implementation uses a four-row horizontal cache instead of
 a full-plane signed intermediate. This preserves exact coefficients, rounding,
-borders, and output while reducing the scaler's horizontal working set. It
-remains serial because clean bounded-worker panic propagation has not yet been
-established.
+borders, and output while reducing the scaler's horizontal working set. For
+inputs of at least 131,072 pixels on hosts reporting at least two-way available
+parallelism, the pipelines run their three independent Y, Cb, and Cr channel
+branches with at most three standard-library workers. Smaller inputs remain
+serial.
 
 Run the reproducible processing-only benchmark with:
 
 ```text
-cargo run --locked --release --example processing_bench -- baseline 640 360 5
-cargo run --locked --release --example processing_bench -- quality 640 360 5
+cargo run --locked --release --example processing_bench -- baseline auto 640 360 5
+cargo run --locked --release --example processing_bench -- quality auto 640 360 5
 ```
 
 The benchmark uses a deterministic in-memory gradient, one unmeasured warm-up,
 and excludes fixture generation and I/O from timing. See
 `docs/PERFORMANCE.md` for memory calculations, local before/after measurements,
-limitations, and the threading decision.
+limitations, thread failure semantics, and serial-versus-parallel measurements.
 
 ## Diagnostic quality evaluation
 
