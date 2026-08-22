@@ -1,6 +1,7 @@
 //! Replaceable image input and output interfaces.
 
 pub mod ppm;
+pub mod raw;
 
 use crate::image::Image;
 use crate::spec::Dimensions;
@@ -38,6 +39,7 @@ pub enum ImageIoError {
     InvalidData(&'static str),
     File(String),
     Ppm(ppm::PpmError),
+    Raw(raw::RawRgb8Error),
 }
 
 impl fmt::Display for ImageIoError {
@@ -49,6 +51,7 @@ impl fmt::Display for ImageIoError {
             Self::InvalidData(message) => write!(formatter, "invalid image data: {message}"),
             Self::File(message) => write!(formatter, "image file error: {message}"),
             Self::Ppm(error) => write!(formatter, "PPM P6 error: {error}"),
+            Self::Raw(error) => write!(formatter, "raw RGB8 error: {error}"),
         }
     }
 }
@@ -58,5 +61,11 @@ impl std::error::Error for ImageIoError {}
 impl From<ppm::PpmError> for ImageIoError {
     fn from(error: ppm::PpmError) -> Self {
         Self::Ppm(error)
+    }
+}
+
+impl From<raw::RawRgb8Error> for ImageIoError {
+    fn from(error: raw::RawRgb8Error) -> Self {
+        Self::Raw(error)
     }
 }

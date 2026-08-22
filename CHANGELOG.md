@@ -22,6 +22,10 @@ All notable project changes are recorded in this file.
 - Added an opt-in deterministic scalar `QualityPipeline` that changes only bicubic luma.
 - Added fixed-point edge orientation, direction-guided refinement, controlled sharpening, and local-envelope anti-ringing.
 - Added quality-candidate tests for constants, borders, orientations, envelopes, dimensions, mismatch handling, repeatability, and synthetic edges.
+- Added a strict provisional packed row-major RGB8 raw codec for assumption A-002.
+- Wired the two-argument PPM P6 command through the scalar bicubic baseline.
+- Added explicit raw RGB8 processing with required dimensions and stable CLI exit statuses.
+- Added standard-library end-to-end CLI tests for PPM, raw RGB8, malformed input, dimensions, and exit codes.
 
 ### Fixed
 

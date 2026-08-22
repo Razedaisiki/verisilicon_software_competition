@@ -2,7 +2,7 @@
 
 This repository is the Rust software-track project for a dependency-free 2x image super-resolution command-line tool.
 
-Milestone 4 provides a buildable Rust 2024 binary and library foundation. It includes checked image types, a strict PPM P6 codec, deterministic fixed-point BT.601 full-range color conversion, and a scalar separable 2x Catmull-Rom bicubic baseline. CLI processing is intentionally not wired yet.
+Milestone 6 provides an end-to-end dependency-free command-line path for strict PPM P6 and provisional packed RGB8 raw files. Both public processing commands use the unchanged scalar `BicubicBaseline`.
 
 Milestone 5 also provides an opt-in `QualityPipeline`. It is an unscored quality candidate, not a claim of measured superiority. The unchanged `BicubicBaseline` remains the scalar correctness oracle.
 
@@ -34,15 +34,20 @@ On a Unix-like host, the offline one-click build entry point copies the release 
 sh build.sh
 ```
 
-## Command skeleton
+## Commands
 
 ```text
-sr <input> <output>
+sr <input.ppm> <output.ppm>
+sr --raw-rgb8 <width> <height> <input.raw> <output.raw>
 sr --batch <in_dir> <out_dir>
 sr --help
 ```
 
-Processing commands currently return exit status 3 with an English not-implemented message. Invalid arguments return exit status 2. The codec and baseline are not wired to these commands yet.
+The official two-argument command decodes strict RGB8 PPM P6, scales it by 2x with `BicubicBaseline`, and writes deterministic PPM P6 output. The explicit raw command uses provisional assumption A-002: packed row-major RGB8 in R, G, B order with no header or row padding. Raw dimensions are mandatory.
+
+Batch syntax is recognized but returns exit status 3 until milestone 7. Invalid arguments return status 2, processing failures return status 4, and successful commands return status 0. Output files follow standard replacement behavior.
+
+`QualityPipeline` remains an opt-in library API and is not selected by the CLI.
 
 ## Development checks
 
