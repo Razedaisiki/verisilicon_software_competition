@@ -45,6 +45,14 @@ These assumptions enable implementation planning before all committee package de
 - Reason: these rules provide deterministic and recoverable behavior while official batch details are missing.
 - Replacement boundary: isolate discovery, ordering, overwrite, continuation, and status policies in the batch coordinator. Replace them together if the committee package defines different behavior.
 
+## A-008: Quality metrics are provisional diagnostics
+
+- Provisional rule: diagnostic PSNR and SSIM operate on deterministic fixed-point BT.601 luma and require equal image dimensions. Identical luma images return explicit infinite PSNR.
+- PSNR definition: `10 * log10(255^2 / MSE)`, using population mean squared luma error.
+- SSIM definition: one global population-statistics window over the complete luma image, using `((2 mx my + C1) (2 covariance + C2)) / ((mx^2 + my^2 + C1) (variance_x + variance_y + C2))`. Constants are `L = 255`, `K1 = 0.01`, `K2 = 0.03`, `C1 = 6.5025`, and `C2 = 58.5225`.
+- Reason: deterministic local diagnostics are needed for regression testing and visual QA while the official metric implementation and dataset are unavailable.
+- Replacement boundary: keep diagnostic metrics separate from official score reporting. Add the committee implementation as a distinct evaluation path and do not silently reinterpret existing regression thresholds.
+
 ## Change control
 
 - Do not spread provisional values across CLI, I/O, algorithm, and benchmark code.

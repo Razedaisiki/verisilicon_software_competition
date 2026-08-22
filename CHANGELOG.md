@@ -30,6 +30,11 @@ All notable project changes are recorded in this file.
 - Added non-overwriting batch output policy, ordered failure reporting, and partial-failure continuation.
 - Added centralized processing-only timing around algorithm execution without normal timing output.
 - Added provisional batch assumption A-007 and standard-library batch integration tests.
+- Added self-written provisional diagnostic luma PSNR and global luma SSIM metrics.
+- Added deterministic source-generated constant, gradient, hard-edge, and checker-detail fixtures.
+- Added fixed-threshold quality regression coverage without asserting pipeline superiority.
+- Added a deterministic `visual_qa` example that writes PPM artifacts and reports diagnostic metrics.
+- Added provisional metric assumption A-008 and documented the exact formulas and constants.
 
 ### Fixed
 

@@ -46,6 +46,7 @@ These interfaces are planning defaults, not official facts. Their definitions an
 | A-005 | The local bicubic admission baseline uses cubic parameter `a = -0.5`. | Provisional | Project planning |
 | A-006 | Initial performance measurement uses a processing-only timing boundary. | Provisional | Project planning |
 | A-007 | Batch mode is non-recursive, deterministically ordered, and refuses existing outputs. | Provisional | Project planning |
+| A-008 | Luma PSNR and global luma SSIM are provisional diagnostic metrics only. | Provisional | Project planning |
 
 ## Missing official package details
 

@@ -53,6 +53,20 @@ Processing-only timing follows provisional assumption A-006. Timing starts immed
 
 `QualityPipeline` remains an opt-in library API and is not selected by the CLI.
 
+## Diagnostic quality evaluation
+
+The library exposes provisional luma PSNR and global luma SSIM diagnostics. They use the project's deterministic fixed-point BT.601 luma conversion and require equal image dimensions. Identical luma images have explicit infinite PSNR. These implementations are not claimed to match the missing official scoring tools.
+
+The global SSIM diagnostic uses population variance and covariance over the complete image with `L = 255`, `K1 = 0.01`, `K2 = 0.03`, `C1 = 6.5025`, and `C2 = 58.5225`. It is not a sliding-window or multiscale SSIM variant.
+
+Generate deterministic synthetic PPM artifacts and print baseline and quality diagnostic metrics with:
+
+```text
+cargo run --locked --release --example visual_qa -- <output_dir>
+```
+
+The example generates constant, smooth-gradient, hard-edge, and checker-detail cases. It refuses to overwrite any planned artifact. Generated files are local evaluation output and must not be committed.
+
 ## Development checks
 
 ```text

@@ -2,6 +2,8 @@
 
 pub mod algorithm;
 pub mod cli;
+pub mod fixtures;
 pub mod image;
 pub mod io;
+pub mod metrics;
 pub mod spec;
