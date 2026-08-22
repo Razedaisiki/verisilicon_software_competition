@@ -16,3 +16,7 @@ All notable project changes are recorded in this file.
 - Added a strict dependency-free RGB8 PPM P6 byte codec and standard-library file adapter.
 - Added deterministic PPM encoding and validation for malformed headers, dimensions, raster length, separators, and trailing data.
 - Added in-memory and temporary-file codec tests, including leading raster whitespace and hash bytes.
+
+### Fixed
+
+- Restored Rust 1.85 CI compatibility for the PPM adapter.

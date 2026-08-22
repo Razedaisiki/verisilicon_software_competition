@@ -92,14 +92,14 @@ impl ImageDecoder for PpmP6Codec {
             ImageIoError::File(format!("failed to read {}: {error}", path.display()))
         })?;
         let image = self.decode_bytes(&input)?;
-        if let Some(expected) = spec.dimensions
-            && image.dimensions() != expected
-        {
-            return Err(PpmError::DimensionMismatch {
-                expected,
-                actual: image.dimensions(),
+        if let Some(expected) = spec.dimensions {
+            if image.dimensions() != expected {
+                return Err(PpmError::DimensionMismatch {
+                    expected,
+                    actual: image.dimensions(),
+                }
+                .into());
             }
-            .into());
         }
         Ok(image)
     }
