@@ -53,6 +53,26 @@ Processing-only timing follows provisional assumption A-006. Timing starts immed
 
 `QualityPipeline` remains an opt-in library API and is not selected by the CLI.
 
+## Performance diagnostics
+
+The scalar bicubic implementation uses a four-row horizontal cache instead of
+a full-plane signed intermediate. This preserves exact coefficients, rounding,
+borders, and output while reducing the scaler's horizontal working set. It
+remains serial because clean bounded-worker panic propagation has not yet been
+established.
+
+Run the reproducible processing-only benchmark with:
+
+```text
+cargo run --locked --release --example processing_bench -- baseline 640 360 5
+cargo run --locked --release --example processing_bench -- quality 640 360 5
+```
+
+The benchmark uses a deterministic in-memory gradient, one unmeasured warm-up,
+and excludes fixture generation and I/O from timing. See
+`docs/PERFORMANCE.md` for memory calculations, local before/after measurements,
+limitations, and the threading decision.
+
 ## Diagnostic quality evaluation
 
 The library exposes provisional luma PSNR and global luma SSIM diagnostics. They use the project's deterministic fixed-point BT.601 luma conversion and require equal image dimensions. Identical luma images have explicit infinite PSNR. These implementations are not claimed to match the missing official scoring tools.

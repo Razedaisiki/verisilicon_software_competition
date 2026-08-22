@@ -1,6 +1,8 @@
 //! Deterministic scalar luma enhancement candidate.
 
 use super::bicubic::scale_plane_2x;
+#[cfg(test)]
+use super::bicubic::scale_plane_2x_reference;
 use super::color::{YCbCr8, rgb_to_ycbcr, ycbcr_to_rgb};
 use super::{AlgorithmError, SuperResolution};
 use crate::image::{Image, Rgb8};
@@ -40,59 +42,81 @@ impl QualityPipeline {
     pub const fn new() -> Self {
         Self
     }
+
+    /// Runs the retained full-intermediate scalar scaler as an exact oracle.
+    #[cfg(test)]
+    pub(crate) fn process_reference(
+        &self,
+        input: &Image,
+        config: ProcessingConfig,
+    ) -> Result<Image, AlgorithmError> {
+        process_impl(input, config, scale_plane_2x_reference)
+    }
 }
 
 impl SuperResolution for QualityPipeline {
     fn process(&self, input: &Image, config: ProcessingConfig) -> Result<Image, AlgorithmError> {
-        if input.dimensions() != config.input_dimensions() {
-            return Err(AlgorithmError::DimensionMismatch {
-                expected: config.input_dimensions(),
-                actual: input.dimensions(),
-            });
-        }
-        if config.scale() != Scale::X2 {
-            return Err(AlgorithmError::InvalidConfiguration(
-                "quality pipeline requires 2x scale",
-            ));
-        }
-
-        let input_count = input
-            .dimensions()
-            .pixel_count()
-            .map_err(AlgorithmError::InvalidDimensions)?;
-        let mut y_plane = reserve_u8(input_count)?;
-        let mut cb_plane = reserve_u8(input_count)?;
-        let mut cr_plane = reserve_u8(input_count)?;
-        for &pixel in input.pixels() {
-            let converted = rgb_to_ycbcr(pixel);
-            y_plane.push(converted.y);
-            cb_plane.push(converted.cb);
-            cr_plane.push(converted.cr);
-        }
-
-        let input_dimensions = input.dimensions();
-        let output_dimensions = config
-            .output_dimensions()
-            .map_err(AlgorithmError::InvalidDimensions)?;
-        let y_bicubic = scale_plane_2x(&y_plane, input_dimensions)?;
-        let y_enhanced = enhance_luma(&y_bicubic, output_dimensions)?;
-        let cb_scaled = scale_plane_2x(&cb_plane, input_dimensions)?;
-        let cr_scaled = scale_plane_2x(&cr_plane, input_dimensions)?;
-
-        let output_count = output_dimensions
-            .pixel_count()
-            .map_err(AlgorithmError::InvalidDimensions)?;
-        let mut pixels = reserve_rgb8(output_count)?;
-        for index in 0..output_count {
-            pixels.push(ycbcr_to_rgb(YCbCr8::new(
-                y_enhanced[index],
-                cb_scaled[index],
-                cr_scaled[index],
-            )));
-        }
-        Image::new(output_dimensions, pixels)
-            .map_err(|_| AlgorithmError::ProcessingFailed("invalid quality output image"))
+        process_impl(input, config, scale_plane_2x)
     }
+}
+
+fn process_impl(
+    input: &Image,
+    config: ProcessingConfig,
+    scaler: fn(&[u8], Dimensions) -> Result<Vec<u8>, AlgorithmError>,
+) -> Result<Image, AlgorithmError> {
+    if input.dimensions() != config.input_dimensions() {
+        return Err(AlgorithmError::DimensionMismatch {
+            expected: config.input_dimensions(),
+            actual: input.dimensions(),
+        });
+    }
+    if config.scale() != Scale::X2 {
+        return Err(AlgorithmError::InvalidConfiguration(
+            "quality pipeline requires 2x scale",
+        ));
+    }
+
+    let input_count = input
+        .dimensions()
+        .pixel_count()
+        .map_err(AlgorithmError::InvalidDimensions)?;
+    let mut y_plane = reserve_u8(input_count)?;
+    let mut cb_plane = reserve_u8(input_count)?;
+    let mut cr_plane = reserve_u8(input_count)?;
+    for &pixel in input.pixels() {
+        let converted = rgb_to_ycbcr(pixel);
+        y_plane.push(converted.y);
+        cb_plane.push(converted.cb);
+        cr_plane.push(converted.cr);
+    }
+
+    let input_dimensions = input.dimensions();
+    let output_dimensions = config
+        .output_dimensions()
+        .map_err(AlgorithmError::InvalidDimensions)?;
+    let y_bicubic = scaler(&y_plane, input_dimensions)?;
+    drop(y_plane);
+    let y_enhanced = enhance_luma(&y_bicubic, output_dimensions)?;
+    drop(y_bicubic);
+    let cb_scaled = scaler(&cb_plane, input_dimensions)?;
+    drop(cb_plane);
+    let cr_scaled = scaler(&cr_plane, input_dimensions)?;
+    drop(cr_plane);
+
+    let output_count = output_dimensions
+        .pixel_count()
+        .map_err(AlgorithmError::InvalidDimensions)?;
+    let mut pixels = reserve_rgb8(output_count)?;
+    for index in 0..output_count {
+        pixels.push(ycbcr_to_rgb(YCbCr8::new(
+            y_enhanced[index],
+            cb_scaled[index],
+            cr_scaled[index],
+        )));
+    }
+    Image::new(output_dimensions, pixels)
+        .map_err(|_| AlgorithmError::ProcessingFailed("invalid quality output image"))
 }
 
 /// Enhances an already bicubic-scaled luma plane.
@@ -258,6 +282,7 @@ mod tests {
         local_envelope,
     };
     use crate::algorithm::{BicubicBaseline, SuperResolution};
+    use crate::fixtures::{HardEdge, checker_detail, hard_edge, smooth_gradient};
     use crate::image::{Image, Rgb8};
     use crate::spec::{Dimensions, ProcessingConfig};
 
@@ -338,6 +363,28 @@ mod tests {
                 .process(&input, ProcessingConfig::new(dimensions(2, 1)))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn optimized_quality_matches_reference_across_patterns_and_sizes() {
+        let inputs = [
+            Image::new(dimensions(1, 1), vec![Rgb8::new(19, 37, 83)]).unwrap(),
+            smooth_gradient(dimensions(7, 5)).unwrap(),
+            hard_edge(dimensions(1, 7), HardEdge::Horizontal).unwrap(),
+            checker_detail(dimensions(9, 3), 2).unwrap(),
+        ];
+        for input in inputs {
+            let config = ProcessingConfig::new(input.dimensions());
+            let reference = QualityPipeline::new()
+                .process_reference(&input, config)
+                .unwrap();
+            for _ in 0..3 {
+                assert_eq!(
+                    QualityPipeline::new().process(&input, config).unwrap(),
+                    reference
+                );
+            }
+        }
     }
 
     #[test]

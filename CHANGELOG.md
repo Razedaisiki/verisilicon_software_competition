@@ -35,6 +35,10 @@ All notable project changes are recorded in this file.
 - Added fixed-threshold quality regression coverage without asserting pipeline superiority.
 - Added a deterministic `visual_qa` example that writes PPM artifacts and reports diagnostic metrics.
 - Added provisional metric assumption A-008 and documented the exact formulas and constants.
+- Added an exact four-row bicubic working-set optimization with retained scalar regression oracles.
+- Added exact baseline and quality equivalence tests for synthetic, odd-sized, thin, and single-pixel inputs.
+- Added a reproducible processing-only release benchmark with deterministic checksums.
+- Added documented memory calculations, local before/after measurements, and the serial threading policy.
 
 ### Fixed
 
