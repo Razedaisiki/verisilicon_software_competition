@@ -2,7 +2,13 @@
 
 This repository is the Rust software-track project for a dependency-free 2x image super-resolution command-line tool.
 
-Milestone 2 provides a buildable Rust 2024 binary and library scaffold. It defines checked image dimensions, RGB8 image ownership, replaceable image I/O and algorithm boundaries, and the required CLI shapes. Image decoding and scaling are intentionally not implemented yet.
+Milestone 3 provides a buildable Rust 2024 binary and library foundation. It defines checked image dimensions, RGB8 image ownership, replaceable image I/O and algorithm boundaries, and a strict dependency-free PPM P6 codec. Scaling and CLI processing are intentionally not implemented yet.
+
+## PPM P6 codec
+
+The library codec accepts RGB8 PPM P6 data with decimal width and height, `maxval` exactly 255, legal header whitespace, and comments before header values. It requires an exact packed RGB8 raster with no trailing bytes. Encoding uses a deterministic header and raster representation.
+
+The separator after `maxval` is exactly one whitespace character. CRLF is treated as one logical separator. Additional bytes, including whitespace and `#`, belong to the raster so valid leading pixel bytes are never discarded.
 
 ## Build
 
@@ -26,7 +32,7 @@ sr --batch <in_dir> <out_dir>
 sr --help
 ```
 
-Processing commands currently return exit status 3 with an English not-implemented message. Invalid arguments return exit status 2.
+Processing commands currently return exit status 3 with an English not-implemented message. Invalid arguments return exit status 2. The codec is not wired to these commands yet.
 
 ## Development checks
 

@@ -1,5 +1,7 @@
 //! Replaceable image input and output interfaces.
 
+pub mod ppm;
+
 use crate::image::Image;
 use crate::spec::Dimensions;
 use std::fmt;
@@ -35,6 +37,7 @@ pub enum ImageIoError {
     UnsupportedFormat(ImageFormat),
     InvalidData(&'static str),
     File(String),
+    Ppm(ppm::PpmError),
 }
 
 impl fmt::Display for ImageIoError {
@@ -45,8 +48,15 @@ impl fmt::Display for ImageIoError {
             }
             Self::InvalidData(message) => write!(formatter, "invalid image data: {message}"),
             Self::File(message) => write!(formatter, "image file error: {message}"),
+            Self::Ppm(error) => write!(formatter, "PPM P6 error: {error}"),
         }
     }
 }
 
 impl std::error::Error for ImageIoError {}
+
+impl From<ppm::PpmError> for ImageIoError {
+    fn from(error: ppm::PpmError) -> Self {
+        Self::Ppm(error)
+    }
+}
