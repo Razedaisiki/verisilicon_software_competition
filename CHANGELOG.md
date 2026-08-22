@@ -19,6 +19,9 @@ All notable project changes are recorded in this file.
 - Added deterministic fixed-point BT.601 full-range RGB8 and YCbCr8 conversion.
 - Added a checked scalar separable 2x Catmull-Rom bicubic plane scaler.
 - Added the `BicubicBaseline` pipeline with fixed vectors, border, impulse, gradient, color, dimension, and repeatability tests.
+- Added an opt-in deterministic scalar `QualityPipeline` that changes only bicubic luma.
+- Added fixed-point edge orientation, direction-guided refinement, controlled sharpening, and local-envelope anti-ringing.
+- Added quality-candidate tests for constants, borders, orientations, envelopes, dimensions, mismatch handling, repeatability, and synthetic edges.
 
 ### Fixed
 

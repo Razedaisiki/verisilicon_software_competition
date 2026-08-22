@@ -4,6 +4,10 @@ This repository is the Rust software-track project for a dependency-free 2x imag
 
 Milestone 4 provides a buildable Rust 2024 binary and library foundation. It includes checked image types, a strict PPM P6 codec, deterministic fixed-point BT.601 full-range color conversion, and a scalar separable 2x Catmull-Rom bicubic baseline. CLI processing is intentionally not wired yet.
 
+Milestone 5 also provides an opt-in `QualityPipeline`. It is an unscored quality candidate, not a claim of measured superiority. The unchanged `BicubicBaseline` remains the scalar correctness oracle.
+
+The candidate changes only bicubic luma. It uses integer Sobel edge orientation, Q8 same-direction refinement with gain 64, Q8 luma sharpening with gain 48, and a radius-one anti-ringing envelope taken from the unenhanced bicubic luma. Chroma remains bicubic. Every changed luma sample is clamped to its original 3x3 local range.
+
 ## Bicubic baseline
 
 The baseline converts RGB8 to full-range YCbCr8 using documented Q8 integer coefficients, scales all three planes, and converts the result back to RGB8. The scaler uses half-pixel mapping and the provisional Catmull-Rom parameter `a = -0.5`.

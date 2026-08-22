@@ -2,12 +2,14 @@
 
 pub mod bicubic;
 pub mod color;
+pub mod quality;
 
 use crate::image::Image;
 use crate::spec::{Dimensions, ProcessingConfig, SpecError};
 use std::fmt;
 
 pub use bicubic::BicubicBaseline;
+pub use quality::QualityPipeline;
 
 /// Boundary implemented by deterministic CPU algorithms.
 pub trait SuperResolution {
