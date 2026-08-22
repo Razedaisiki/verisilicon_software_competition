@@ -1,0 +1,17 @@
+[package]
+name = "verisilicon_sr"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Dependency-free Rust software-track super-resolution project"
+publish = false
+
+[lib]
+name = "verisilicon_sr"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sr"
+path = "src/main.rs"
+
+[dependencies]
