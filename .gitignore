@@ -1,0 +1,34 @@
+# Official contest assets are local-only inputs.
+*.pdf
+/Cmodel/
+/Cmodel.tar
+
+# Rust build output.
+/target/
+
+# Generated binaries, packages, and temporary output.
+/bin/
+/dist/
+/generated/
+/out/
+/output/
+/package/
+/pkg/
+/temp/
+/tmp/
+*.bin
+*.raw
+*.tar
+*.zip
+*.tmp
+*.temp
+
+# Editor and operating system clutter.
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
