@@ -34,6 +34,13 @@ On a Unix-like host, the offline one-click build entry point copies the release 
 sh build.sh
 ```
 
+On Windows PowerShell, the equivalent entry point copies the release binary to
+`bin/sr.exe`:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+```
+
 ## Commands
 
 ```text
@@ -107,4 +114,14 @@ python scripts/check_ascii.py
 
 Official contest documents, assets, images, archives, and generated outputs are local inputs and are not tracked in this repository.
 
-See `docs/REQUIREMENTS.md` for requirement traceability and `docs/ASSUMPTIONS.md` for provisional interface and algorithm choices.
+Create and verify a deterministic, source-only provisional review package with:
+
+```text
+python scripts/review_package.py create target/review-package.zip
+python scripts/review_package.py verify target/review-package.zip
+```
+
+This ZIP is not an official submission. See `docs/COMPLIANCE.md` for the
+evidence audit, `docs/SUBMISSION.md` for build/evaluation/package instructions
+and the official-package reconciliation checklist, `docs/REQUIREMENTS.md` for
+traceability, and `docs/ASSUMPTIONS.md` for provisional choices.

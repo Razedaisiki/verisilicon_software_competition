@@ -45,6 +45,11 @@ All notable project changes are recorded in this file.
 - Added local 1920x1080 processing evidence for the provisional 1 FPS target.
 - Documented compiler assembly inspection and the evidence-gated decision to defer hand-written SIMD.
 - Added cross-platform CI benchmark policy and checksum verification without timing gates.
+- Added a repository-wide compliance evidence matrix without upgrading provisional claims.
+- Added Linux and Windows build, run, evaluation, packaging, and official-package reconciliation instructions.
+- Added a deterministic source-only provisional review ZIP creator and strict manifest verifier.
+- Added cross-platform CI creation and verification of the provisional review package.
+- Added a Rust 1.85 PowerShell one-click release build entry point.
 
 ### Fixed
 

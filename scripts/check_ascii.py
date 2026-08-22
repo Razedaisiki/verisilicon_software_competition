@@ -11,6 +11,7 @@ from pathlib import Path
 TEXT_SUFFIXES = {
     ".md",
     ".py",
+    ".ps1",
     ".rs",
     ".sh",
     ".toml",
