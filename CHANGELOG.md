@@ -81,6 +81,7 @@ All notable project changes are recorded in this file.
 - Promoted the validated ungated 64/2/32/64 quality configuration to the public Windows `sr.exe` processing path while retaining bicubic, frozen-quality, recommended, and confidence-gated comparison modes.
 - Added a deterministic processing-only batch concurrency benchmark with persistent frame workers, ordered output checksums, local 6-core scaling evidence, and timing-free Windows CI coverage.
 - Replaced sequential CLI batch execution with an adaptive persistent frame-worker scheduler that caps memory, avoids nested oversubscription, preserves one-image automatic policy, and retains byte-exact ordered results and diagnostics.
+- Reused one clamped 3x3 neighborhood per luma output sample, added an exact sample-based regression oracle and isolated hot-loop benchmark, and recorded a byte-identical local throughput improvement.
 
 ### Fixed
 

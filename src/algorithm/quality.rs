@@ -305,7 +305,287 @@ fn enhance_luma_with_parameters(
     enhance_luma_candidate(input, dimensions, parameters, false)
 }
 
+#[derive(Clone, Copy)]
+struct Neighborhood3x3 {
+    north_west: u8,
+    north: u8,
+    north_east: u8,
+    west: u8,
+    center: u8,
+    east: u8,
+    south_west: u8,
+    south: u8,
+    south_east: u8,
+}
+
+impl Neighborhood3x3 {
+    fn load(input: &[u8], width: usize, height: usize, x: usize, y: usize) -> Self {
+        let west_x = x.saturating_sub(1);
+        let east_x = x.saturating_add(1).min(width - 1);
+        let north_y = y.saturating_sub(1);
+        let south_y = y.saturating_add(1).min(height - 1);
+        let north_row = north_y * width;
+        let center_row = y * width;
+        let south_row = south_y * width;
+        Self {
+            north_west: input[north_row + west_x],
+            north: input[north_row + x],
+            north_east: input[north_row + east_x],
+            west: input[center_row + west_x],
+            center: input[center_row + x],
+            east: input[center_row + east_x],
+            south_west: input[south_row + west_x],
+            south: input[south_row + x],
+            south_east: input[south_row + east_x],
+        }
+    }
+
+    fn orientation(self, parameters: QualityParameters) -> EdgeOrientation {
+        let north_west = i32::from(self.north_west);
+        let north = i32::from(self.north);
+        let north_east = i32::from(self.north_east);
+        let west = i32::from(self.west);
+        let east = i32::from(self.east);
+        let south_west = i32::from(self.south_west);
+        let south = i32::from(self.south);
+        let south_east = i32::from(self.south_east);
+        let gradient_x =
+            (north_east + 2 * east + south_east) - (north_west + 2 * west + south_west);
+        let gradient_y =
+            (south_west + 2 * south + south_east) - (north_west + 2 * north + north_east);
+        let magnitude_x = gradient_x.abs();
+        let magnitude_y = gradient_y.abs();
+        if magnitude_x.max(magnitude_y) < parameters.edge_threshold {
+            EdgeOrientation::Flat
+        } else if magnitude_y >= parameters.axis_dominance_ratio * magnitude_x {
+            EdgeOrientation::Horizontal
+        } else if magnitude_x >= parameters.axis_dominance_ratio * magnitude_y {
+            EdgeOrientation::Vertical
+        } else if gradient_x.signum() == gradient_y.signum() {
+            EdgeOrientation::DiagonalUp
+        } else {
+            EdgeOrientation::DiagonalDown
+        }
+    }
+
+    fn directed_pair(self, orientation: EdgeOrientation) -> i32 {
+        match orientation {
+            EdgeOrientation::Flat => i32::from(self.center),
+            EdgeOrientation::Horizontal => average_pair(self.west, self.east),
+            EdgeOrientation::Vertical => average_pair(self.north, self.south),
+            EdgeOrientation::DiagonalDown => average_pair(self.north_west, self.south_east),
+            EdgeOrientation::DiagonalUp => average_pair(self.north_east, self.south_west),
+        }
+    }
+
+    fn axial_low_pass(self) -> i32 {
+        let axial_sum = i32::from(self.west)
+            + i32::from(self.east)
+            + i32::from(self.north)
+            + i32::from(self.south);
+        (axial_sum + 2) / 4
+    }
+
+    fn envelope(self) -> (u8, u8) {
+        let values = [
+            self.north_west,
+            self.north,
+            self.north_east,
+            self.west,
+            self.center,
+            self.east,
+            self.south_west,
+            self.south,
+            self.south_east,
+        ];
+        let mut minimum = u8::MAX;
+        let mut maximum = u8::MIN;
+        for value in values {
+            minimum = minimum.min(value);
+            maximum = maximum.max(value);
+        }
+        (minimum, maximum)
+    }
+}
+
 fn enhance_luma_candidate(
+    input: &[u8],
+    dimensions: Dimensions,
+    parameters: QualityParameters,
+    confidence_gated: bool,
+) -> Result<Vec<u8>, AlgorithmError> {
+    let expected = dimensions
+        .pixel_count()
+        .map_err(AlgorithmError::InvalidDimensions)?;
+    if input.len() != expected {
+        return Err(AlgorithmError::InvalidPlaneLength {
+            expected,
+            actual: input.len(),
+        });
+    }
+    let width = to_usize(dimensions.width())?;
+    let height = to_usize(dimensions.height())?;
+    let mut output = zeroed_u8(expected)?;
+
+    for y in 0..height {
+        for x in 0..width {
+            let neighborhood = Neighborhood3x3::load(input, width, height, x, y);
+            let center = i32::from(neighborhood.center);
+            let orientation = neighborhood.orientation(parameters);
+            let directed = neighborhood.directed_pair(orientation);
+            let refined =
+                center + round_q8((directed - center) * parameters.directional_refine_gain_q8);
+            let low_pass = neighborhood.axial_low_pass();
+            let sharpened = refined + round_q8((center - low_pass) * parameters.sharpen_gain_q8);
+            let (minimum, maximum) = neighborhood.envelope();
+            let enhanced = sharpened.clamp(i32::from(minimum), i32::from(maximum));
+            let gated = if confidence_gated {
+                let alpha = confidence_alpha_q8_with_neighborhood(
+                    input,
+                    width,
+                    height,
+                    x,
+                    y,
+                    neighborhood,
+                    orientation,
+                );
+                center + round_q8((enhanced - center) * alpha)
+            } else {
+                enhanced
+            };
+            output[y * width + x] = gated.clamp(i32::from(minimum), i32::from(maximum)) as u8;
+        }
+    }
+    Ok(output)
+}
+
+#[cfg(test)]
+fn confidence_alpha_q8(
+    input: &[u8],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+    orientation: EdgeOrientation,
+) -> i32 {
+    confidence_alpha_q8_with_neighborhood(
+        input,
+        width,
+        height,
+        x,
+        y,
+        Neighborhood3x3::load(input, width, height, x, y),
+        orientation,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn confidence_alpha_q8_with_neighborhood(
+    input: &[u8],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+    neighborhood: Neighborhood3x3,
+    orientation: EdgeOrientation,
+) -> i32 {
+    let (before, center, after, tangent_disagreement) = match orientation {
+        EdgeOrientation::Flat => return 0,
+        EdgeOrientation::Horizontal => (
+            i32::from(neighborhood.south_west) - i32::from(neighborhood.north_west),
+            i32::from(neighborhood.south) - i32::from(neighborhood.north),
+            i32::from(neighborhood.south_east) - i32::from(neighborhood.north_east),
+            (i32::from(neighborhood.east) - i32::from(neighborhood.west)).abs(),
+        ),
+        EdgeOrientation::Vertical => (
+            i32::from(neighborhood.north_east) - i32::from(neighborhood.north_west),
+            i32::from(neighborhood.east) - i32::from(neighborhood.west),
+            i32::from(neighborhood.south_east) - i32::from(neighborhood.south_west),
+            (i32::from(neighborhood.south) - i32::from(neighborhood.north)).abs(),
+        ),
+        EdgeOrientation::DiagonalDown => (
+            i32::from(sample(input, width, height, x, y, 0, -2))
+                - i32::from(sample(input, width, height, x, y, -2, 0)),
+            i32::from(neighborhood.north_east) - i32::from(neighborhood.south_west),
+            i32::from(sample(input, width, height, x, y, 2, 0))
+                - i32::from(sample(input, width, height, x, y, 0, 2)),
+            (i32::from(neighborhood.south_east) - i32::from(neighborhood.north_west)).abs(),
+        ),
+        EdgeOrientation::DiagonalUp => (
+            i32::from(sample(input, width, height, x, y, 0, 2))
+                - i32::from(sample(input, width, height, x, y, -2, 0)),
+            i32::from(neighborhood.south_east) - i32::from(neighborhood.north_west),
+            i32::from(sample(input, width, height, x, y, 2, 0))
+                - i32::from(sample(input, width, height, x, y, 0, -2)),
+            (i32::from(neighborhood.north_east) - i32::from(neighborhood.south_west)).abs(),
+        ),
+    };
+    if center == 0 || before.signum() != center.signum() || after.signum() != center.signum() {
+        return 0;
+    }
+    let contrast_disagreement = (before - center).abs() + (after - center).abs();
+    let evidence = center.abs() - tangent_disagreement - (contrast_disagreement + 1) / 2;
+    confidence_ramp_q8(evidence)
+}
+
+fn confidence_ramp_q8(evidence: i32) -> i32 {
+    const ZERO_EVIDENCE: i32 = 8;
+    const FULL_EVIDENCE: i32 = 48;
+    if evidence <= ZERO_EVIDENCE {
+        0
+    } else if evidence >= FULL_EVIDENCE {
+        256
+    } else {
+        ((evidence - ZERO_EVIDENCE) * 256 + (FULL_EVIDENCE - ZERO_EVIDENCE) / 2)
+            / (FULL_EVIDENCE - ZERO_EVIDENCE)
+    }
+}
+
+#[cfg(test)]
+fn detect_edge_orientation_unchecked(
+    input: &[u8],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+) -> EdgeOrientation {
+    detect_edge_orientation_with_parameters(input, width, height, x, y, DEFAULT_QUALITY_PARAMETERS)
+}
+
+#[cfg(test)]
+fn detect_edge_orientation_with_parameters(
+    input: &[u8],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+    parameters: QualityParameters,
+) -> EdgeOrientation {
+    Neighborhood3x3::load(input, width, height, x, y).orientation(parameters)
+}
+
+#[cfg(test)]
+fn local_envelope(input: &[u8], width: usize, height: usize, x: usize, y: usize) -> (u8, u8) {
+    debug_assert_eq!(ENVELOPE_RADIUS, 1);
+    Neighborhood3x3::load(input, width, height, x, y).envelope()
+}
+
+fn sample(
+    input: &[u8],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+    x_offset: isize,
+    y_offset: isize,
+) -> u8 {
+    let sample_x = x.saturating_add_signed(x_offset).min(width - 1);
+    let sample_y = y.saturating_add_signed(y_offset).min(height - 1);
+    input[sample_y * width + sample_x]
+}
+
+#[cfg(test)]
+fn enhance_luma_candidate_reference(
     input: &[u8],
     dimensions: Dimensions,
     parameters: QualityParameters,
@@ -328,7 +608,7 @@ fn enhance_luma_candidate(
         for x in 0..width {
             let center = i32::from(sample(input, width, height, x, y, 0, 0));
             let orientation =
-                detect_edge_orientation_with_parameters(input, width, height, x, y, parameters);
+                detect_edge_orientation_reference(input, width, height, x, y, parameters);
             let directed = match orientation {
                 EdgeOrientation::Flat => center,
                 EdgeOrientation::Horizontal => average_pair(
@@ -356,10 +636,10 @@ fn enhance_luma_candidate(
                 + i32::from(sample(input, width, height, x, y, 0, 1));
             let low_pass = (axial_sum + 2) / 4;
             let sharpened = refined + round_q8((center - low_pass) * parameters.sharpen_gain_q8);
-            let (minimum, maximum) = local_envelope(input, width, height, x, y);
+            let (minimum, maximum) = local_envelope_reference(input, width, height, x, y);
             let enhanced = sharpened.clamp(i32::from(minimum), i32::from(maximum));
             let gated = if confidence_gated {
-                let alpha = confidence_alpha_q8(input, width, height, x, y, orientation);
+                let alpha = confidence_alpha_q8_reference(input, width, height, x, y, orientation);
                 center + round_q8((enhanced - center) * alpha)
             } else {
                 enhanced
@@ -370,7 +650,62 @@ fn enhance_luma_candidate(
     Ok(output)
 }
 
-fn confidence_alpha_q8(
+#[cfg(test)]
+fn detect_edge_orientation_reference(
+    input: &[u8],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+    parameters: QualityParameters,
+) -> EdgeOrientation {
+    let north_west = i32::from(sample(input, width, height, x, y, -1, -1));
+    let north = i32::from(sample(input, width, height, x, y, 0, -1));
+    let north_east = i32::from(sample(input, width, height, x, y, 1, -1));
+    let west = i32::from(sample(input, width, height, x, y, -1, 0));
+    let east = i32::from(sample(input, width, height, x, y, 1, 0));
+    let south_west = i32::from(sample(input, width, height, x, y, -1, 1));
+    let south = i32::from(sample(input, width, height, x, y, 0, 1));
+    let south_east = i32::from(sample(input, width, height, x, y, 1, 1));
+    let gradient_x = (north_east + 2 * east + south_east) - (north_west + 2 * west + south_west);
+    let gradient_y = (south_west + 2 * south + south_east) - (north_west + 2 * north + north_east);
+    let magnitude_x = gradient_x.abs();
+    let magnitude_y = gradient_y.abs();
+    if magnitude_x.max(magnitude_y) < parameters.edge_threshold {
+        EdgeOrientation::Flat
+    } else if magnitude_y >= parameters.axis_dominance_ratio * magnitude_x {
+        EdgeOrientation::Horizontal
+    } else if magnitude_x >= parameters.axis_dominance_ratio * magnitude_y {
+        EdgeOrientation::Vertical
+    } else if gradient_x.signum() == gradient_y.signum() {
+        EdgeOrientation::DiagonalUp
+    } else {
+        EdgeOrientation::DiagonalDown
+    }
+}
+
+#[cfg(test)]
+fn local_envelope_reference(
+    input: &[u8],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+) -> (u8, u8) {
+    let mut minimum = u8::MAX;
+    let mut maximum = u8::MIN;
+    for y_offset in -(ENVELOPE_RADIUS as isize)..=ENVELOPE_RADIUS as isize {
+        for x_offset in -(ENVELOPE_RADIUS as isize)..=ENVELOPE_RADIUS as isize {
+            let value = sample(input, width, height, x, y, x_offset, y_offset);
+            minimum = minimum.min(value);
+            maximum = maximum.max(value);
+        }
+    }
+    (minimum, maximum)
+}
+
+#[cfg(test)]
+fn confidence_alpha_q8_reference(
     input: &[u8],
     width: usize,
     height: usize,
@@ -419,91 +754,6 @@ fn confidence_alpha_q8(
     confidence_ramp_q8(evidence)
 }
 
-fn confidence_ramp_q8(evidence: i32) -> i32 {
-    const ZERO_EVIDENCE: i32 = 8;
-    const FULL_EVIDENCE: i32 = 48;
-    if evidence <= ZERO_EVIDENCE {
-        0
-    } else if evidence >= FULL_EVIDENCE {
-        256
-    } else {
-        ((evidence - ZERO_EVIDENCE) * 256 + (FULL_EVIDENCE - ZERO_EVIDENCE) / 2)
-            / (FULL_EVIDENCE - ZERO_EVIDENCE)
-    }
-}
-
-#[cfg(test)]
-fn detect_edge_orientation_unchecked(
-    input: &[u8],
-    width: usize,
-    height: usize,
-    x: usize,
-    y: usize,
-) -> EdgeOrientation {
-    detect_edge_orientation_with_parameters(input, width, height, x, y, DEFAULT_QUALITY_PARAMETERS)
-}
-
-fn detect_edge_orientation_with_parameters(
-    input: &[u8],
-    width: usize,
-    height: usize,
-    x: usize,
-    y: usize,
-    parameters: QualityParameters,
-) -> EdgeOrientation {
-    let north_west = i32::from(sample(input, width, height, x, y, -1, -1));
-    let north = i32::from(sample(input, width, height, x, y, 0, -1));
-    let north_east = i32::from(sample(input, width, height, x, y, 1, -1));
-    let west = i32::from(sample(input, width, height, x, y, -1, 0));
-    let east = i32::from(sample(input, width, height, x, y, 1, 0));
-    let south_west = i32::from(sample(input, width, height, x, y, -1, 1));
-    let south = i32::from(sample(input, width, height, x, y, 0, 1));
-    let south_east = i32::from(sample(input, width, height, x, y, 1, 1));
-
-    let gradient_x = (north_east + 2 * east + south_east) - (north_west + 2 * west + south_west);
-    let gradient_y = (south_west + 2 * south + south_east) - (north_west + 2 * north + north_east);
-    let magnitude_x = gradient_x.abs();
-    let magnitude_y = gradient_y.abs();
-    if magnitude_x.max(magnitude_y) < parameters.edge_threshold {
-        EdgeOrientation::Flat
-    } else if magnitude_y >= parameters.axis_dominance_ratio * magnitude_x {
-        EdgeOrientation::Horizontal
-    } else if magnitude_x >= parameters.axis_dominance_ratio * magnitude_y {
-        EdgeOrientation::Vertical
-    } else if gradient_x.signum() == gradient_y.signum() {
-        EdgeOrientation::DiagonalUp
-    } else {
-        EdgeOrientation::DiagonalDown
-    }
-}
-
-fn local_envelope(input: &[u8], width: usize, height: usize, x: usize, y: usize) -> (u8, u8) {
-    let mut minimum = u8::MAX;
-    let mut maximum = u8::MIN;
-    for y_offset in -(ENVELOPE_RADIUS as isize)..=ENVELOPE_RADIUS as isize {
-        for x_offset in -(ENVELOPE_RADIUS as isize)..=ENVELOPE_RADIUS as isize {
-            let value = sample(input, width, height, x, y, x_offset, y_offset);
-            minimum = minimum.min(value);
-            maximum = maximum.max(value);
-        }
-    }
-    (minimum, maximum)
-}
-
-fn sample(
-    input: &[u8],
-    width: usize,
-    height: usize,
-    x: usize,
-    y: usize,
-    x_offset: isize,
-    y_offset: isize,
-) -> u8 {
-    let sample_x = x.saturating_add_signed(x_offset).min(width - 1);
-    let sample_y = y.saturating_add_signed(y_offset).min(height - 1);
-    input[sample_y * width + sample_x]
-}
-
 fn average_pair(first: u8, second: u8) -> i32 {
     (i32::from(first) + i32::from(second) + 1) / 2
 }
@@ -546,10 +796,12 @@ fn zeroed_u8(length: usize) -> Result<Vec<u8>, AlgorithmError> {
 mod tests {
     use super::{
         ConfidenceGatedQualityPipeline, DEFAULT_QUALITY_PARAMETERS, EdgeOrientation,
-        QualityParameters, QualityPipeline, SELECTED_UNGATED_PARAMETERS, SelectedQualityPipeline,
-        confidence_alpha_q8, confidence_ramp_q8, detect_edge_orientation_unchecked,
+        Neighborhood3x3, QualityParameters, QualityPipeline, SELECTED_UNGATED_PARAMETERS,
+        SelectedQualityPipeline, confidence_alpha_q8, confidence_alpha_q8_reference,
+        confidence_alpha_q8_with_neighborhood, confidence_ramp_q8,
+        detect_edge_orientation_reference, detect_edge_orientation_unchecked,
         detect_edge_orientation_with_parameters, enhance_luma, enhance_luma_candidate,
-        local_envelope,
+        enhance_luma_candidate_reference, local_envelope, local_envelope_reference,
     };
     use crate::algorithm::{BicubicBaseline, ExecutionPolicy, SuperResolution};
     use crate::fixtures::{HardEdge, checker_detail, constant, hard_edge, smooth_gradient};
@@ -562,6 +814,122 @@ mod tests {
 
     fn orientation(plane: &[u8]) -> EdgeOrientation {
         detect_edge_orientation_unchecked(plane, 3, 3, 1, 1)
+    }
+
+    fn deterministic_luma_planes(width: usize, height: usize) -> Vec<Vec<u8>> {
+        let count = width * height;
+        let constant = vec![91; count];
+        let patterned = (0..count)
+            .map(|index| {
+                let x = index % width;
+                let y = index / width;
+                x.wrapping_mul(37)
+                    .wrapping_add(y.wrapping_mul(91))
+                    .wrapping_add(x.wrapping_mul(y).wrapping_mul(13))
+                    .wrapping_add(17) as u8
+            })
+            .collect();
+        let checker = (0..count)
+            .map(|index| {
+                let x = index % width;
+                let y = index / width;
+                if (x + y) & 1 == 0 { 8 } else { 247 }
+            })
+            .collect();
+        let impulse = (0..count)
+            .map(|index| if index == count / 2 { 255 } else { 0 })
+            .collect();
+        vec![constant, patterned, checker, impulse]
+    }
+
+    #[test]
+    fn cached_neighborhood_matches_sample_oracle_exactly() {
+        let dimension_cases = [
+            (1, 1),
+            (1, 2),
+            (2, 1),
+            (1, 7),
+            (7, 1),
+            (2, 2),
+            (2, 3),
+            (3, 2),
+            (3, 3),
+            (4, 5),
+            (5, 4),
+            (7, 5),
+            (9, 7),
+        ];
+        let orientations = [
+            EdgeOrientation::Flat,
+            EdgeOrientation::Horizontal,
+            EdgeOrientation::Vertical,
+            EdgeOrientation::DiagonalDown,
+            EdgeOrientation::DiagonalUp,
+        ];
+        for (width, height) in dimension_cases {
+            let image_dimensions = dimensions(width as u32, height as u32);
+            for plane in deterministic_luma_planes(width, height) {
+                for parameters in [DEFAULT_QUALITY_PARAMETERS, SELECTED_UNGATED_PARAMETERS] {
+                    for confidence_gated in [false, true] {
+                        assert_eq!(
+                            enhance_luma_candidate(
+                                &plane,
+                                image_dimensions,
+                                parameters,
+                                confidence_gated,
+                            )
+                            .unwrap(),
+                            enhance_luma_candidate_reference(
+                                &plane,
+                                image_dimensions,
+                                parameters,
+                                confidence_gated,
+                            )
+                            .unwrap(),
+                            "luma mismatch for {width}x{height}, {parameters:?}, gated={confidence_gated}"
+                        );
+                    }
+
+                    for y in 0..height {
+                        for x in 0..width {
+                            let neighborhood = Neighborhood3x3::load(&plane, width, height, x, y);
+                            assert_eq!(
+                                neighborhood.orientation(parameters),
+                                detect_edge_orientation_reference(
+                                    &plane, width, height, x, y, parameters,
+                                )
+                            );
+                            assert_eq!(
+                                neighborhood.envelope(),
+                                local_envelope_reference(&plane, width, height, x, y)
+                            );
+                            for orientation in orientations {
+                                assert_eq!(
+                                    confidence_alpha_q8_with_neighborhood(
+                                        &plane,
+                                        width,
+                                        height,
+                                        x,
+                                        y,
+                                        neighborhood,
+                                        orientation,
+                                    ),
+                                    confidence_alpha_q8_reference(
+                                        &plane,
+                                        width,
+                                        height,
+                                        x,
+                                        y,
+                                        orientation,
+                                    ),
+                                    "confidence mismatch for {width}x{height} at {x},{y}, {orientation:?}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]

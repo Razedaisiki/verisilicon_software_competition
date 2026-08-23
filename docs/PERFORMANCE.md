@@ -191,6 +191,30 @@ The smooth-gradient fixture produced the same checksum
 that fixture. The gate adds neighborhood evidence work and did not improve
 Eval30 quality, so neither quality nor throughput supports selecting it.
 
+## Luma neighborhood reuse
+
+The selected and frozen quality paths now load one clamped 3x3 neighborhood
+per output luma sample and reuse it for orientation, directional refinement,
+the axial low-pass, and the anti-ringing envelope. The confidence-gated
+diagnostic also reuses the same neighborhood for cardinal evidence. A retained
+sample-based test oracle checks exact output equivalence across small, thin,
+odd, and border-heavy dimensions, both parameter sets, and gated and ungated
+execution.
+
+On 2026-08-23, the local Ryzen 5 5500U host ran seven interleaved old/new
+release processes of `luma_enhance_bench`. Each process enhanced a 3840x2160
+deterministic luma plane for ten measured iterations after one warm-up.
+Fixture generation and output hashing were outside the interval.
+
+| Implementation | Median megapixels/s | Change |
+| --- | ---: | ---: |
+| Repeated clamped sampling | 56.555 | reference |
+| Reused 3x3 neighborhood | 58.166 | +2.8% |
+
+Every run produced checksum `4178ee0e5d6f156c`. Full-pipeline measurements
+remain dominated by bicubic scaling, color conversion, and host noise, so this
+isolated result is not presented as an equal percentage gain in batch FPS.
+
 ## Processing-only batch concurrency matrix
 
 The dependency-free `batch_processing_bench` example keeps a fixed set of

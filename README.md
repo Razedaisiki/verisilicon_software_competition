@@ -122,6 +122,16 @@ cargo run --locked --release --example processing_bench -- selected-ungated auto
 cargo run --locked --release --example processing_bench -- confidence-gated auto 640 360 5
 ```
 
+Isolate the scalar luma-enhancement hot loop with:
+
+```text
+cargo run --locked --release --example luma_enhance_bench -- 3840 2160 10
+```
+
+This diagnostic performs one unmeasured warm-up, excludes fixture generation
+and output hashing from timing, and prints a deterministic checksum. CI
+compiles it but does not enforce a timing threshold.
+
 Measure processing-only batch throughput with an explicit frame-worker count
 and per-frame policy:
 
