@@ -11,11 +11,11 @@ compliance claim.
 
 | Requirement | Status | Exact repository evidence | Remaining official-package dependency |
 | --- | --- | --- | --- |
-| PDF-001 RGB8 input, primarily 1920x1080 | Implemented | `src/image.rs` defines `Rgb8`; `src/io/ppm.rs` and `src/io/raw.rs` validate exact raster lengths; CLI integration tests in `src/cli.rs` cover decoding and dimensions. | Official dataset, accepted dimension variants, and raw metadata rules. |
+| PDF-001 RGB8 input, primarily 1920x1080 | Implemented | `src/image.rs` defines `Rgb8`; `src/io/ppm.rs` and `src/io/raw.rs` validate exact raster lengths; `src/spec.rs` fixes official raw input at 1920x1080 RGB888 (6,220,800 bytes); CLI tests cover PPM and full-size raw decoding. | Official dataset, accepted PPM dimension variants, and a versioned written record of the organizer-confirmed raw contract. |
 | PDF-002 2x RGB8 output, primarily 3840x2160 | Implemented | `src/spec.rs` fixes public `Scale::X2` and checks overflow; algorithm and CLI tests assert exact doubled dimensions. | Official reference outputs and any permitted exceptional dimensions. |
-| PDF-003 PPM P6 or committee raw RGB | Provisional | Strict PPM implementation and malformed/truncated tests are in `src/io/ppm.rs`; explicit packed raw implementation and tests are in `src/io/raw.rs`; assumptions A-001 and A-002 define unresolved details. | Exact committee PPM interpretation and raw channel order, stride, naming, byte order, and metadata. |
-| PDF-004 exact `./sr <input> <output>` | Implemented | `src/cli.rs` parses the two-argument form and `ppm_command_scales_end_to_end` exercises it; `src/main.rs` exposes binary `sr`; README lists the exact command. | Official acceptance fixture and platform invocation environment. |
-| PDF-005 exact `./sr --batch <in_dir> <out_dir>` | Provisional | `src/cli.rs` implements and tests deterministic batch discovery, output creation, partial failures, and no-candidate handling; A-007 records provisional semantics. | Official recursion, overwrite, ordering, extension, and failure policy. |
+| PDF-003 PPM P6 or committee raw RGB | Provisional | Strict PPM implementation and malformed/truncated tests are in `src/io/ppm.rs`; `src/spec.rs`, `src/io/raw.rs`, and `src/cli.rs` implement the organizer-confirmed 1920x1080 packed row-major RGB888 contract with exact 6,220,800-byte input and 24,883,200-byte output. Extension-first routing and content detection are tested. | Exact committee PPM interpretation and a versioned written raw contract, including official filename and metadata conventions. |
+| PDF-004 exact `./sr <input> <output>` | Implemented | `src/cli.rs` parses the two-argument form; tests exercise PPM, full-size fixed raw, extension precedence, output-suffix independence, ambiguity, and invalid lengths; `src/main.rs` exposes binary `sr`; README lists the exact command. | Official acceptance fixture and platform invocation environment. |
+| PDF-005 exact `./sr --batch <in_dir> <out_dir>` | Provisional | `src/cli.rs` implements and tests deterministic mixed `.ppm`, `.raw`, and `.rgb` discovery, output creation, partial failures, and no-candidate handling; A-007 records provisional semantics. | Official recursion, overwrite, ordering, extension, and failure policy. |
 | PDF-006 byte-identical repeated output | Implemented | Bicubic and quality tests compare repeated exact `Image` equality; forced serial and parallel paths match the retained scalar oracle across constant, gradient, edge, checker, odd, thin, and 1x1 inputs; `scripts/check_processing_bench.py` checks fixed serial/parallel checksums. | Official input corpus and any required cross-platform reference hashes. |
 | PDF-007 offline one-click build | Implemented | Zero dependency graph in `Cargo.toml` and `Cargo.lock`; `build.sh` and `build.ps1` run `cargo build --locked --release` and copy the binary; CI builds on Linux and Windows. | Official definition of offline environment, preinstalled Rust toolchain, and mandated build entry-point name. |
 | PDF-008 CPU-only; threading and SIMD allowed | Implemented | `src/algorithm.rs` uses bounded standard-library CPU threads; processing modules contain CPU integer code; `docs/PERFORMANCE.md` documents dispatch. No GPU API or dependency exists. | Official CPU, core/thread policy, compiler flags, and target architecture. |
@@ -44,12 +44,12 @@ compliance claim.
 | Assumption | Status | Exact repository evidence | Replacement dependency |
 | --- | --- | --- | --- |
 | A-001 PPM P6 maxval 255, one byte/sample | Provisional | `src/io/ppm.rs` enforces the rule and tests comments, CRLF, malformed headers, lengths, and leading raster bytes; README documents it. | Committee PPM rules and reference files. |
-| A-002 packed row-major RGB8 raw | Provisional | `src/io/raw.rs`, explicit `--raw-rgb8` parsing in `src/cli.rs`, raw round-trip and length tests, and README. | Official order, stride, dimensions, naming, endianness, and metadata. |
+| A-002 packed row-major RGB8 raw | Confirmed working contract | `src/spec.rs` fixes 1920x1080 input, 3840x2160 output, 6,220,800 input bytes, and 24,883,200 output bytes; `src/io/raw.rs` and `src/cli.rs` enforce the contract; tests cover full-size raw, a leading `P6` byte sequence, uppercase extensions, exact output size, and malformed lengths. The diagnostic `--raw-rgb8` form remains dimension-explicit. | Obtain a versioned written organizer record and confirm official filename and metadata conventions. |
 | A-003 BT.601 full-range fixed-point color | Provisional | Coefficients, rounding, clipping, and fixed vectors are in `src/algorithm/color.rs`; both pipelines call this module. | Official color space, range, coefficients, and reference vectors. |
 | A-004 fixed 2x scale | Provisional | `src/spec.rs` exposes only `Scale::X2`; configuration and algorithm tests check exact output dimensions and overflow. | Confirmation that no other scale or dimension policy is required. |
 | A-005 Catmull-Rom a=-0.5 bicubic | Provisional | Exact Q7 phase weights, half-pixel mapping, borders, Q14 rounding, oracle, and tests are in `src/algorithm/bicubic.rs`; README documents them. | Official coefficients, coordinates, border handling, rounding, and reference output. |
 | A-006 processing-only timing | Provisional | `examples/processing_bench.rs` places `Instant` only around algorithm calls after warm-up; `docs/PERFORMANCE.md` records raw runs and limitations. | Official timing API, process/I/O boundary, warm-up, repetitions, CPU controls, and compiler settings. |
-| A-007 deterministic non-recursive non-overwriting batch | Provisional | Batch coordinator and ordered integration tests are in `src/cli.rs`; README and `docs/ASSUMPTIONS.md` state all current rules. | Official batch discovery, recursion, overwrite, ordering, failure, and reporting behavior. |
+| A-007 deterministic non-recursive non-overwriting batch | Provisional | Batch coordinator and ordered mixed-format `.ppm`, `.raw`, and `.rgb` discovery tests are in `src/cli.rs`; README and `docs/ASSUMPTIONS.md` state all current rules. | Official batch discovery, recursion, overwrite, ordering, failure, and reporting behavior. |
 | A-008 provisional luma PSNR/global SSIM | Provisional | Formulas and fixed tests are in `src/metrics.rs`; regression use is in `tests/quality_regression.rs`; visual reporting is in `examples/visual_qa.rs`. | Official metrics, windows, color transform, dataset, thresholds, and result format. |
 
 ## Repository-wide controls
@@ -67,7 +67,8 @@ compliance claim.
 ## Blocking official inputs
 
 Final compliance remains blocked on the versioned official dataset, bicubic
-baseline coefficients and reference outputs, raw layout, timing API and
+baseline coefficients and reference outputs, a versioned written record of the
+organizer-confirmed raw contract, timing API and
 platform, metric definitions and thresholds, submission directory and archive
 naming template, result record schema, AI Coding log format, and confirmation
 that Rust 1.85 is accepted. The removed hardware-track Cmodel is not treated as

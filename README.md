@@ -2,7 +2,9 @@
 
 This repository is the Rust software-track project for a dependency-free 2x image super-resolution command-line tool.
 
-Milestone 6 provides an end-to-end dependency-free command-line path for strict PPM P6 and provisional packed RGB8 raw files. Both public processing commands use the unchanged scalar `BicubicBaseline`.
+The project provides an end-to-end dependency-free command-line path for strict
+PPM P6 and organizer-confirmed fixed packed RGB888 raw files. Public processing
+commands use the unchanged scalar `BicubicBaseline`.
 
 Milestone 5 also provides an opt-in `QualityPipeline`. It is an unscored quality candidate, not a claim of measured superiority. The unchanged `BicubicBaseline` remains the scalar correctness oracle.
 
@@ -44,15 +46,32 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 ## Commands
 
 ```text
-sr <input.ppm> <output.ppm>
+sr <input> <output>
 sr --raw-rgb8 <width> <height> <input.raw> <output.raw>
 sr --batch <in_dir> <out_dir>
 sr --help
 ```
 
-The official two-argument command decodes strict RGB8 PPM P6, scales it by 2x with `BicubicBaseline`, and writes deterministic PPM P6 output. The explicit raw command uses provisional assumption A-002: packed row-major RGB8 in R, G, B order with no header or row padding. Raw dimensions are mandatory.
+The two-argument command accepts strict PPM P6 with dynamic dimensions or the
+fixed official raw working contract: 1920x1080 packed row-major RGB888 in R, G,
+B byte order, top-to-bottom rows, with no header or stride padding. Fixed raw
+input is exactly 6,220,800 bytes and output is 3840x2160 and exactly 24,883,200
+bytes.
 
-Batch mode processes non-recursive regular PPM files in deterministic filename order, accepts `.ppm` case-insensitively, creates the output directory, preserves filenames, and skips unrelated entries. It refuses every existing output, continues after per-file failures, and returns status 4 if any file fails or no candidates exist. These semantics are provisional assumption A-007.
+Input extension takes precedence: `.ppm` selects strict PPM, while `.raw` and
+`.rgb` select fixed official raw, all ASCII case-insensitively. Unknown or
+missing extensions are detected only when the complete input is either valid
+PPM or has the exact official raw length. Ambiguous valid inputs must be renamed
+with an explicit supported extension. Output encoding always follows the
+selected input format, regardless of the output filename extension. The
+`--raw-rgb8` command remains an explicit variable-dimension developer path.
+
+Batch mode processes non-recursive regular `.ppm`, `.raw`, and `.rgb` files in
+deterministic filename order, ASCII case-insensitively. It preserves filenames
+and input formats, creates the output directory, and skips unrelated entries.
+It refuses every existing output, continues after per-file failures, and
+returns status 4 if any file fails or no candidates exist. Discovery and
+failure semantics remain provisional assumption A-007; raw geometry is fixed.
 
 Invalid arguments return status 2, processing failures return status 4, and successful commands return status 0. Single-file commands retain standard output replacement behavior.
 

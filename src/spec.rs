@@ -2,6 +2,24 @@
 
 use std::fmt;
 
+/// Organizer-confirmed width of official packed RGB888 input.
+pub const OFFICIAL_RAW_INPUT_WIDTH: u32 = 1920;
+/// Organizer-confirmed height of official packed RGB888 input.
+pub const OFFICIAL_RAW_INPUT_HEIGHT: u32 = 1080;
+/// Exact byte count of official packed RGB888 input.
+pub const OFFICIAL_RAW_INPUT_BYTE_COUNT: usize = 6_220_800;
+/// Exact byte count of 2x official packed RGB888 output.
+pub const OFFICIAL_RAW_OUTPUT_BYTE_COUNT: usize = 24_883_200;
+
+/// Returns the fixed official packed RGB888 input dimensions.
+#[must_use]
+pub const fn official_raw_input_dimensions() -> Dimensions {
+    Dimensions {
+        width: OFFICIAL_RAW_INPUT_WIDTH,
+        height: OFFICIAL_RAW_INPUT_HEIGHT,
+    }
+}
+
 /// The public scale supported by the software contest scope.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Scale {
@@ -117,7 +135,10 @@ impl std::error::Error for SpecError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Dimensions, ProcessingConfig, Scale, SpecError};
+    use super::{
+        Dimensions, OFFICIAL_RAW_INPUT_BYTE_COUNT, OFFICIAL_RAW_OUTPUT_BYTE_COUNT,
+        ProcessingConfig, Scale, SpecError, official_raw_input_dimensions,
+    };
 
     #[test]
     fn dimensions_reject_zero_values() {
@@ -151,5 +172,19 @@ mod tests {
         assert_eq!(config.input_dimensions(), input);
         assert_eq!(config.scale(), Scale::X2);
         assert_eq!(config.output_dimensions(), Dimensions::new(8, 6));
+    }
+
+    #[test]
+    fn official_raw_geometry_and_byte_counts_are_exact() {
+        let input = official_raw_input_dimensions();
+        assert_eq!(input, Dimensions::new(1920, 1080).unwrap());
+        assert_eq!(
+            input.pixel_count().unwrap() * 3,
+            OFFICIAL_RAW_INPUT_BYTE_COUNT
+        );
+        assert_eq!(
+            input.scaled(Scale::X2).unwrap().pixel_count().unwrap() * 3,
+            OFFICIAL_RAW_OUTPUT_BYTE_COUNT
+        );
     }
 }

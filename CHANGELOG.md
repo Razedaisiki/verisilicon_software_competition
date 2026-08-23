@@ -55,6 +55,10 @@ All notable project changes are recorded in this file.
 - Added synthetic cross-platform converter checks covering every PNG scanline filter and required failure paths.
 - Documented development-only DIV2K preparation without adding PNG to the Rust runtime path.
 - Bounded developer PNG source and decoded sizes and enforced the PNG chunk-type reserved bit.
+- Added organizer-confirmed fixed 1920x1080 packed RGB888 input and 3840x2160 output constants.
+- Extended the two-argument command with extension-first PPM/raw selection and safe unknown-extension detection.
+- Extended deterministic batch discovery to `.ppm`, `.raw`, and `.rgb` while preserving each input format.
+- Added full-size official raw routing, byte-count, content-hash, and mixed-format discovery tests.
 
 ### Fixed
 

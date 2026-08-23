@@ -8,11 +8,20 @@ These assumptions enable implementation planning before all committee package de
 - Reason: the software scope requires RGB8, and this is the smallest interoperable PPM P6 representation.
 - Replacement boundary: isolate PPM parsing and encoding behind the image I/O layer. If the committee package specifies other header or sample rules, replace only that layer and its format tests.
 
-## A-002: Raw input is packed RGB8
+## A-002: Organizer-confirmed fixed packed RGB888 working contract
 
-- Provisional rule: raw images contain tightly packed, row-major RGB8 pixels in R, G, B order with no header or row padding. Dimensions come from the committee context or batch configuration.
-- Reason: the authoritative raw layout is not yet available.
-- Replacement boundary: keep raw layout selection in a format descriptor. Replace channel order, byte order, stride, dimensions, or metadata handling without changing the processing algorithm.
+- Confirmed working rule: official raw input is fixed 1920x1080, tightly packed
+  row-major RGB888 in R, G, B byte order, with top-to-bottom rows, no header, and
+  no stride padding. Input is exactly 6,220,800 bytes. Output is fixed
+  3840x2160 in the same layout and exactly 24,883,200 bytes.
+- Source: direct organizer clarification supplied during implementation. A
+  versioned written package statement is still requested for final audit.
+- Interface rule: two-argument `.raw` or `.rgb` input uses these fixed
+  dimensions. The explicit `--raw-rgb8 <width> <height>` command remains a
+  variable-dimension developer diagnostic path.
+- Replacement boundary: raw geometry and layout constants remain centralized.
+  Reconcile them only if a versioned organizer document contradicts the working
+  contract.
 
 ## A-003: The project pipeline uses BT.601 full-range fixed-point math
 
@@ -40,8 +49,15 @@ These assumptions enable implementation planning before all committee package de
 
 ## A-007: Batch processing is non-recursive and non-overwriting
 
-- Provisional rule: batch mode selects only regular files in the input directory whose extension is ASCII case-insensitively equal to `.ppm`. It does not recurse. Candidates are processed in deterministic filename order, unrelated entries are skipped, filenames are preserved, and the output directory is created when candidates exist.
-- Failure rule: existing outputs are never overwritten. Processing continues after per-file failures, diagnostics retain candidate order, and the command fails if any candidate fails. Success requires at least one completed PPM file and no failures. An input directory with no candidates is an error.
+- Provisional rule: batch mode selects regular `.ppm`, `.raw`, and `.rgb` files
+  ASCII case-insensitively. It does not recurse. Candidates are processed in
+  deterministic filename order, unrelated entries are skipped, filenames and
+  input formats are preserved, and the output directory is created when
+  candidates exist. Raw candidates use the fixed A-002 geometry.
+- Failure rule: existing outputs are never overwritten. Processing continues
+  after per-file failures, diagnostics retain candidate order, and the command
+  fails if any candidate fails. Success requires at least one completed image
+  and no failures. An input directory with no candidates is an error.
 - Reason: these rules provide deterministic and recoverable behavior while official batch details are missing.
 - Replacement boundary: isolate discovery, ordering, overwrite, continuation, and status policies in the batch coordinator. Replace them together if the committee package defines different behavior.
 

@@ -40,7 +40,7 @@ These interfaces are planning defaults, not official facts. Their definitions an
 | ID | Assumption | Status | Source |
 | --- | --- | --- | --- |
 | A-001 | PPM P6 uses 8-bit samples with `maxval` 255. | Provisional | Project planning |
-| A-002 | Raw images use tightly packed row-major RGB8 with no header or row padding. | Provisional | Project planning |
+| A-002 | Official raw is fixed 1920x1080 packed row-major RGB888 in R/G/B order with top-to-bottom rows and no header or padding; output is fixed 3840x2160 in the same layout. | Confirmed working contract | Direct organizer clarification; written package record pending |
 | A-003 | The project pipeline uses BT.601 full-range fixed-point color conversion. | Provisional | Project planning |
 | A-004 | The public processing scale is fixed at 2x. | Provisional | Software scope |
 | A-005 | The local bicubic admission baseline uses cubic parameter `a = -0.5`. | Provisional | Project planning |
@@ -53,7 +53,8 @@ These interfaces are planning defaults, not official facts. Their definitions an
 The following details must be replaced with versioned committee data before final acceptance:
 
 - Exact bicubic baseline coefficients, sampling coordinates, border rules, rounding, and reference output data.
-- Exact raw RGB channel order, byte order, row stride, file naming, and metadata rules.
+- Versioned written confirmation of the raw working contract, including file
+  naming and any metadata requirements outside the packed payload.
 - Official timing API, measurement boundary, warm-up procedure, host platform, CPU configuration, thread policy, and compiler settings.
 - Official image dataset, objective metric formulas, score weights, thresholds, and subjective review procedure.
 - Exact submission directory template, filename rules, build entry point, result record schema, and AI Coding log format.

@@ -54,9 +54,10 @@ candidate succeeds. A failed batch removes its staging directory, and existing
 output directories are refused.
 
 PPM output is directly compatible with the two-argument `sr` command. Raw
-output has no header, padding, or dimension sidecar; pass each image's known
-width and height to `sr --raw-rgb8`. This packed layout remains provisional
-assumption A-002.
+output has no header, padding, or dimension sidecar. Use the two-argument path
+only for converted images that are exactly 1920x1080; it applies the fixed
+organizer-confirmed A-002 geometry. For the varying DIV2K dimensions, pass each
+image's known width and height to the developer `sr --raw-rgb8` path.
 
 ## Check
 
