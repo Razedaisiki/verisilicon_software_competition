@@ -25,6 +25,37 @@ pub const SHARPEN_GAIN_Q8: i32 = 48;
 /// Radius of the unenhanced bicubic luma envelope used for anti-ringing.
 pub const ENVELOPE_RADIUS: usize = 1;
 
+/// Explicit evaluation-only parameters for the existing quality arithmetic.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct QualityParameters {
+    pub edge_threshold: i32,
+    pub axis_dominance_ratio: i32,
+    pub directional_refine_gain_q8: i32,
+    pub sharpen_gain_q8: i32,
+}
+
+pub const DEFAULT_QUALITY_PARAMETERS: QualityParameters = QualityParameters {
+    edge_threshold: EDGE_THRESHOLD,
+    axis_dominance_ratio: AXIS_DOMINANCE_RATIO,
+    directional_refine_gain_q8: DIRECTIONAL_REFINE_GAIN_Q8,
+    sharpen_gain_q8: SHARPEN_GAIN_Q8,
+};
+
+impl QualityParameters {
+    fn validate(self) -> Result<Self, AlgorithmError> {
+        if self.edge_threshold < 0
+            || !(1..=256).contains(&self.axis_dominance_ratio)
+            || !(0..=256).contains(&self.directional_refine_gain_q8)
+            || !(0..=256).contains(&self.sharpen_gain_q8)
+        {
+            return Err(AlgorithmError::InvalidConfiguration(
+                "quality evaluation parameters are outside supported bounds",
+            ));
+        }
+        Ok(self)
+    }
+}
+
 /// Quantized orientation of an edge through one luma sample.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EdgeOrientation {
@@ -52,7 +83,24 @@ impl QualityPipeline {
         config: ProcessingConfig,
         policy: ExecutionPolicy,
     ) -> Result<Image, AlgorithmError> {
-        process_impl(input, config, scale_plane_2x, policy)
+        self.process_with_parameters(input, config, policy, DEFAULT_QUALITY_PARAMETERS)
+    }
+
+    /// Processes with explicit evaluation-only parameters.
+    pub fn process_with_parameters(
+        &self,
+        input: &Image,
+        config: ProcessingConfig,
+        policy: ExecutionPolicy,
+        parameters: QualityParameters,
+    ) -> Result<Image, AlgorithmError> {
+        process_impl(
+            input,
+            config,
+            scale_plane_2x,
+            policy,
+            parameters.validate()?,
+        )
     }
 
     /// Runs the retained full-intermediate scalar scaler as an exact oracle.
@@ -67,6 +115,7 @@ impl QualityPipeline {
             config,
             scale_plane_2x_reference,
             ExecutionPolicy::Serial,
+            DEFAULT_QUALITY_PARAMETERS,
         )
     }
 }
@@ -82,6 +131,7 @@ fn process_impl(
     config: ProcessingConfig,
     scaler: fn(&[u8], Dimensions) -> Result<Vec<u8>, AlgorithmError>,
     policy: ExecutionPolicy,
+    parameters: QualityParameters,
 ) -> Result<Image, AlgorithmError> {
     if input.dimensions() != config.input_dimensions() {
         return Err(AlgorithmError::DimensionMismatch {
@@ -117,7 +167,7 @@ fn process_impl(
     let [y_enhanced, cb_scaled, cr_scaled] = if selected == ExecutionPolicy::Serial {
         let y_bicubic = scaler(&y_plane, input_dimensions)?;
         drop(y_plane);
-        let y_enhanced = enhance_luma(&y_bicubic, output_dimensions)?;
+        let y_enhanced = enhance_luma_with_parameters(&y_bicubic, output_dimensions, parameters)?;
         drop(y_bicubic);
         let cb_scaled = scaler(&cb_plane, input_dimensions)?;
         drop(cb_plane);
@@ -128,7 +178,7 @@ fn process_impl(
         let scaled = run_channel_jobs(selected, |channel| match channel {
             0 => {
                 let y_bicubic = scaler(&y_plane, input_dimensions)?;
-                enhance_luma(&y_bicubic, output_dimensions)
+                enhance_luma_with_parameters(&y_bicubic, output_dimensions, parameters)
             }
             1 => scaler(&cb_plane, input_dimensions),
             2 => scaler(&cr_plane, input_dimensions),
@@ -163,6 +213,14 @@ fn process_impl(
 /// Every result is finally clamped to the minimum and maximum in the original
 /// 3x3 bicubic neighborhood, preventing new local extrema.
 pub fn enhance_luma(input: &[u8], dimensions: Dimensions) -> Result<Vec<u8>, AlgorithmError> {
+    enhance_luma_with_parameters(input, dimensions, DEFAULT_QUALITY_PARAMETERS)
+}
+
+fn enhance_luma_with_parameters(
+    input: &[u8],
+    dimensions: Dimensions,
+    parameters: QualityParameters,
+) -> Result<Vec<u8>, AlgorithmError> {
     let expected = dimensions
         .pixel_count()
         .map_err(AlgorithmError::InvalidDimensions)?;
@@ -179,7 +237,8 @@ pub fn enhance_luma(input: &[u8], dimensions: Dimensions) -> Result<Vec<u8>, Alg
     for y in 0..height {
         for x in 0..width {
             let center = i32::from(sample(input, width, height, x, y, 0, 0));
-            let orientation = detect_edge_orientation_unchecked(input, width, height, x, y);
+            let orientation =
+                detect_edge_orientation_with_parameters(input, width, height, x, y, parameters);
             let directed = match orientation {
                 EdgeOrientation::Flat => center,
                 EdgeOrientation::Horizontal => average_pair(
@@ -199,13 +258,14 @@ pub fn enhance_luma(input: &[u8], dimensions: Dimensions) -> Result<Vec<u8>, Alg
                     sample(input, width, height, x, y, -1, 1),
                 ),
             };
-            let refined = center + round_q8((directed - center) * DIRECTIONAL_REFINE_GAIN_Q8);
+            let refined =
+                center + round_q8((directed - center) * parameters.directional_refine_gain_q8);
             let axial_sum = i32::from(sample(input, width, height, x, y, -1, 0))
                 + i32::from(sample(input, width, height, x, y, 1, 0))
                 + i32::from(sample(input, width, height, x, y, 0, -1))
                 + i32::from(sample(input, width, height, x, y, 0, 1));
             let low_pass = (axial_sum + 2) / 4;
-            let sharpened = refined + round_q8((center - low_pass) * SHARPEN_GAIN_Q8);
+            let sharpened = refined + round_q8((center - low_pass) * parameters.sharpen_gain_q8);
             let (minimum, maximum) = local_envelope(input, width, height, x, y);
             output[y * width + x] = sharpened.clamp(i32::from(minimum), i32::from(maximum)) as u8;
         }
@@ -213,12 +273,24 @@ pub fn enhance_luma(input: &[u8], dimensions: Dimensions) -> Result<Vec<u8>, Alg
     Ok(output)
 }
 
+#[cfg(test)]
 fn detect_edge_orientation_unchecked(
     input: &[u8],
     width: usize,
     height: usize,
     x: usize,
     y: usize,
+) -> EdgeOrientation {
+    detect_edge_orientation_with_parameters(input, width, height, x, y, DEFAULT_QUALITY_PARAMETERS)
+}
+
+fn detect_edge_orientation_with_parameters(
+    input: &[u8],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+    parameters: QualityParameters,
 ) -> EdgeOrientation {
     let north_west = i32::from(sample(input, width, height, x, y, -1, -1));
     let north = i32::from(sample(input, width, height, x, y, 0, -1));
@@ -233,11 +305,11 @@ fn detect_edge_orientation_unchecked(
     let gradient_y = (south_west + 2 * south + south_east) - (north_west + 2 * north + north_east);
     let magnitude_x = gradient_x.abs();
     let magnitude_y = gradient_y.abs();
-    if magnitude_x.max(magnitude_y) < EDGE_THRESHOLD {
+    if magnitude_x.max(magnitude_y) < parameters.edge_threshold {
         EdgeOrientation::Flat
-    } else if magnitude_y >= AXIS_DOMINANCE_RATIO * magnitude_x {
+    } else if magnitude_y >= parameters.axis_dominance_ratio * magnitude_x {
         EdgeOrientation::Horizontal
-    } else if magnitude_x >= AXIS_DOMINANCE_RATIO * magnitude_y {
+    } else if magnitude_x >= parameters.axis_dominance_ratio * magnitude_y {
         EdgeOrientation::Vertical
     } else if gradient_x.signum() == gradient_y.signum() {
         EdgeOrientation::DiagonalUp
@@ -314,8 +386,8 @@ fn zeroed_u8(length: usize) -> Result<Vec<u8>, AlgorithmError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        EdgeOrientation, QualityPipeline, detect_edge_orientation_unchecked, enhance_luma,
-        local_envelope,
+        DEFAULT_QUALITY_PARAMETERS, EdgeOrientation, QualityParameters, QualityPipeline,
+        detect_edge_orientation_unchecked, enhance_luma, local_envelope,
     };
     use crate::algorithm::{BicubicBaseline, ExecutionPolicy, SuperResolution};
     use crate::fixtures::{HardEdge, checker_detail, constant, hard_edge, smooth_gradient};
@@ -389,6 +461,55 @@ mod tests {
         let second = QualityPipeline::new().process(&input, config).unwrap();
         assert_eq!(first, second);
         assert_eq!(first.dimensions(), dimensions(4, 4));
+    }
+
+    #[test]
+    fn explicit_default_parameters_preserve_the_public_pipeline_exactly() {
+        let input = checker_detail(dimensions(7, 5), 2).unwrap();
+        let config = ProcessingConfig::new(input.dimensions());
+        let pipeline = QualityPipeline::new();
+        let public = pipeline
+            .process_with_policy(&input, config, ExecutionPolicy::Serial)
+            .unwrap();
+        let explicit = pipeline
+            .process_with_parameters(
+                &input,
+                config,
+                ExecutionPolicy::Serial,
+                DEFAULT_QUALITY_PARAMETERS,
+            )
+            .unwrap();
+        assert_eq!(explicit, public);
+    }
+
+    #[test]
+    fn evaluation_parameters_are_validated_and_deterministic() {
+        let input = smooth_gradient(dimensions(7, 5)).unwrap();
+        let config = ProcessingConfig::new(input.dimensions());
+        let pipeline = QualityPipeline::new();
+        let invalid = QualityParameters {
+            edge_threshold: -1,
+            ..DEFAULT_QUALITY_PARAMETERS
+        };
+        assert!(
+            pipeline
+                .process_with_parameters(&input, config, ExecutionPolicy::Serial, invalid)
+                .is_err()
+        );
+
+        let candidate = QualityParameters {
+            edge_threshold: 32,
+            directional_refine_gain_q8: 32,
+            sharpen_gain_q8: 64,
+            ..DEFAULT_QUALITY_PARAMETERS
+        };
+        let first = pipeline
+            .process_with_parameters(&input, config, ExecutionPolicy::Serial, candidate)
+            .unwrap();
+        let second = pipeline
+            .process_with_parameters(&input, config, ExecutionPolicy::Serial, candidate)
+            .unwrap();
+        assert_eq!(first, second);
     }
 
     #[test]

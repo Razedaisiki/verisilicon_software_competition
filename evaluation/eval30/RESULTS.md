@@ -70,3 +70,27 @@ were byte-identical with SHA-256
 The experiment is worse than the existing bicubic anchor in all three content
 categories. It therefore remains an explicit evaluation option and does not
 replace the public runtime baseline.
+
+## Coarse parameter sweep
+
+The first deterministic five-fold sweep evaluated nine configurations without
+changing the public candidate. Every training fold independently selected the
+same parameters for both PSNR and SSIM:
+
+```text
+edge_threshold=64
+axis_dominance_ratio=2
+directional_refine_gain_q8=32
+sharpen_gain_q8=64
+```
+
+The selected out-of-fold result was `33.063362 dB` and `0.930486109` Y-SSIM.
+Relative to the frozen candidate defaults, this is `+0.163100 dB` and
+`+0.002576480` Y-SSIM. Its validation-category deltas versus the frozen
+candidate were positive for nature (`+0.187835 dB`, `+0.005472054`), render
+(`+0.133281 dB`, `+0.001146616`), and text/UI (`+0.168184 dB`, `+0.001110769`).
+
+The generated CSV remains ignored under `target/`. Its SHA-256 is
+`2e05f05cee26c9f42894e0acfa98ee90958c1568880d65e91bab3abfce8ba2d0`.
+These are local tuning results, not an official-score claim; adoption of the
+parameters belongs to a separately reviewed algorithm milestone.

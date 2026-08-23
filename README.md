@@ -195,6 +195,18 @@ distinct report filename:
 powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Baseline recommended -Report target/eval30-recommended-v1.csv
 ```
 
+Run the deterministic nine-configuration coarse parameter sweep with
+five-fold category-stratified cross-validation:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\sweep.ps1
+```
+
+The sweep measures final RGB outputs through the same Y-PSNR and Y-MSSIM
+implementation. It reports training and held-out deltas separately, ranks
+PSNR and SSIM independently, and does not invent an unknown combined score.
+It is a development tool and does not change the public `sr.exe` pipeline.
+
 ## Development checks
 
 ```text

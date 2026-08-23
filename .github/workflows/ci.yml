@@ -46,10 +46,12 @@ jobs:
       - name: Check Windows evaluation runner syntax
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path .\evaluate.ps1), [ref]$tokens, [ref]$errors)
-          if ($errors.Count -ne 0) { throw ($errors -join "`n") }
+          foreach ($script in '.\evaluate.ps1', '.\sweep.ps1') {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script), [ref]$tokens, [ref]$errors)
+            if ($errors.Count -ne 0) { throw "$script`n$($errors -join "`n")" }
+          }
 
       - name: Check development PNG converter
         run: python scripts/check_div2k_converter.py

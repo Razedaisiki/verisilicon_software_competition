@@ -184,6 +184,37 @@ hash. Omitting the selector remains byte-compatible with explicit `bicubic`.
 The Python dataset utilities and Rust evaluator are development-only tools and
 are not included in the Windows submission candidate.
 
+## Parameter sweep and cross-validation
+
+The dependency-free `quality_sweep` example evaluates a fixed, deterministic
+nine-configuration coarse grid for the existing luma quality arithmetic. The
+frozen public candidate parameters are always included. It derives the content
+category by removing one final underscore-or-hyphen numeric suffix from each
+pair ID, then assigns sorted members of every category round-robin across
+folds. Every category must contain at least as many images as the requested
+fold count.
+
+For every fold, candidate selection uses only the complementary training
+images. PSNR and SSIM are ranked and selected independently, and the training
+Pareto frontier is recorded. Held-out metrics, per-category deltas, and the two
+out-of-fold summaries are reported afterward. No cross-metric scalar score is
+created. All metrics are calculated from final RGB output with this document's
+unchanged Y-PSNR and Y-MSSIM implementations.
+
+The Windows runner verifies Eval30, builds offline, refuses to overwrite its
+CSV report, and publishes the result atomically:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\sweep.ps1
+```
+
+The default is five folds and `target/quality-sweep.csv`. The Rust example also
+accepts an explicit compatible manifest, output path, and fold count:
+
+```text
+cargo run --offline --locked --release --example quality_sweep -- path/to/pairs.tsv path/to/results.csv 5
+```
+
 ## Remaining official unknowns
 
 - Exact organizer Y transform and rounding.
