@@ -70,6 +70,9 @@ All notable project changes are recorded in this file.
 - Added a locked 30-image local evaluation catalog balanced across nature photographs, game-like CG renders, and text or UI screenshots.
 - Added deterministic HTTPS fetch, source-hash verification, centered RGB8 HR crop, Pillow bicubic LR generation, attribution, pair locks, and strict prepared-tree verification.
 - Added offline synthetic dataset checks and Windows CI validation without downloading or redistributing the evaluation images.
+- Added the fixed-kernel valid-window Y-MSSIM implementation while preserving the legacy global SSIM diagnostic.
+- Added a dependency-free paired Rust evaluator with strict manifest validation, equal-image compensated reduction, exact CSV output, and atomic non-overwriting publication.
+- Added a one-command Windows Eval30 workflow and recorded the first byte-reproducible 30-image baseline-versus-candidate result.
 
 ### Fixed
 

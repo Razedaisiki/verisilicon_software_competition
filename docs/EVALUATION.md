@@ -156,6 +156,26 @@ pairs before processing. Write the report to a new temporary file in the output
 directory, flush and close it, then atomically rename it to the requested path.
 Any failure removes the temporary file and publishes no partial report.
 
+## Local implementation
+
+The dependency-free `paired_eval` Rust example implements this contract for
+the existing `BicubicBaseline` and `QualityPipeline` without changing either
+pipeline. On Windows, the complete locked Eval30 workflow is:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1
+```
+
+For a prepared compatible manifest and an explicit report path, the evaluator
+can also be run directly:
+
+```text
+cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/report.csv
+```
+
+The Python dataset utilities and Rust evaluator are development-only tools and
+are not included in the Windows submission candidate.
+
 ## Remaining official unknowns
 
 - Exact organizer Y transform and rounding.

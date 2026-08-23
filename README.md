@@ -162,6 +162,18 @@ See `evaluation/eval30/README.md` for the exact local layout, preparation
 contract, and redistribution warning. Eval30 is not an organizer dataset and
 does not enter the Windows submission candidate.
 
+After preparing the database, run the complete Windows evaluation workflow:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1
+```
+
+The script verifies the locked database, builds the dependency-free Rust
+`paired_eval` release example, runs the unchanged baseline and quality
+candidate on every LR image, and writes `target/eval30-report.csv`. It refuses
+to overwrite an existing report. See `evaluation/eval30/RESULTS.md` for the
+first byte-reproducible complete comparison.
+
 ## Development checks
 
 ```text

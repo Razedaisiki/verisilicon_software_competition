@@ -56,6 +56,19 @@ strict PPM P6 with `maxval` 255.
 The Python utility and Pillow are development tools only. Neither is part of
 the Rust runtime or the official submission candidate.
 
+## Run the paired evaluation
+
+After `prepare` and `verify` succeed, the Windows workflow verifies the
+database again, builds the dependency-free Rust evaluator, runs the unchanged
+baseline and candidate, and publishes a new CSV report:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1
+```
+
+The default report is `target/eval30-report.csv`, and an existing report is
+never overwritten. `RESULTS.md` records the first complete reproducible run.
+
 ## Licensing
 
 The tracked catalogs are the attribution and provenance index. Images remain
