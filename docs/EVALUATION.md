@@ -260,6 +260,11 @@ routes to fixed `64/2/24/80` parameters and remains evaluation-only; it does not
 modify `SELECTED_UNGATED_PARAMETERS`, the public `sr.exe` path, or any default
 evaluator selector.
 
+That comparison improved over `64/2/32/64` by `+0.051761 dB` and
+`+0.000836439` Y-SSIM across the 100-pair DIV2K validation set. Both metrics
+improved on every image. The set is consumed for this acceptance decision and
+must not be reused for another parameter search.
+
 ## Remaining official unknowns
 
 - Exact organizer Y transform and rounding.

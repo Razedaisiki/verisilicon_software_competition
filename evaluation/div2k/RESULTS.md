@@ -36,3 +36,30 @@ cargo run --offline --locked --release --example paired_eval -- evaluation/div2k
 
 The source archives, PNG files, prepared PPM files, per-image report, and
 source/output locks remain ignored local artifacts and are not redistributed.
+
+## Fine-finalist acceptance
+
+After the separate Eval30 fine sweep selected `64/2/24/80`, exactly that one
+fixed finalist was compared on the same 100 validation pairs. No train images
+or additional parameter candidates were evaluated.
+
+| Pipeline | Mean Y-PSNR (dB) | Mean Y-SSIM |
+| --- | ---: | ---: |
+| Bicubic baseline | 31.101564 | 0.894103940 |
+| Previous selected `64/2/32/64` | 31.270450 | 0.897669936 |
+| Fine finalist `64/2/24/80` | 31.322210 | 0.898506375 |
+| Finalist minus previous selected | +0.051761 | +0.000836439 |
+| Finalist minus baseline | +0.220647 | +0.004402435 |
+
+The baseline rows in the previous and finalist reports match for all 100
+images. The finalist improves both metrics over the previous selection on all
+100 images; there are no per-image ties or regressions in either metric. This
+accepts the finalist for a separate promotion milestone. The validation set is
+now consumed for this selection and must not be reused to tune another search.
+
+```text
+cargo run --offline --locked --release --example paired_eval -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-fine-finalist-report.csv bicubic fine-finalist
+```
+
+- Evaluator wall time including the release-build check: 59.7 seconds
+- Report SHA-256: `b0a491e7241df3968f812d839a85e7b57be310b4e4d89de4ecc8e4e0c338cdbc`

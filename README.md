@@ -237,7 +237,6 @@ They are not used by the current 100-image optimization. Run the current sweep
 and comparison against the validation manifest:
 
 ```text
-cargo run --locked --release --example quality_sweep -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-validation-sweep.csv 5
 cargo run --locked --release --example paired_eval -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-validation-report.csv bicubic selected-ungated
 cargo run --locked --release --example paired_eval -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-fine-finalist-report.csv bicubic fine-finalist
 ```
@@ -247,9 +246,11 @@ the local bicubic anchor by `+0.168886 dB` Y-PSNR and `+0.003565996` Y-SSIM.
 See `evaluation/div2k/RESULTS.md`; this is local development evidence, not an
 official score.
 
-The `fine-finalist` selector evaluates only the fine-sweep finalist
-`64/2/24/80`. It remains evaluation-only pending that separate 100-pair
-comparison and does not change `sr.exe` or `SELECTED_UNGATED_PARAMETERS`.
+The `fine-finalist` selector evaluates only the Eval30 fine-sweep finalist
+`64/2/24/80`. On the separate 100-pair comparison it improved over the previous
+selection by `+0.051761 dB` Y-PSNR and `+0.000836439` Y-SSIM, with both metrics
+positive on every image. The selector remains isolated until the separate
+promotion milestone changes `sr.exe` and `SELECTED_UNGATED_PARAMETERS`.
 
 ## Local paired evaluation dataset
 

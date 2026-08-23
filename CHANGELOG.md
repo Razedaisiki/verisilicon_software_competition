@@ -87,6 +87,7 @@ All notable project changes are recorded in this file.
 - Added an explicit deterministic 32-candidate fine-search facility around the selected 64/2/32/64 luma parameters, with that configuration as the comparison anchor for Eval30 screening, while retaining the nine-candidate coarse search as the default.
 - Recorded the bounded Eval30 fine sweep selecting 64/2/24/80 for both metrics in every fold, with positive out-of-fold and per-category deltas, while leaving the public pipeline unchanged pending one 100-pair validation comparison.
 - Added an explicit `fine-finalist` paired-evaluator selector for fixed 64/2/24/80 validation without changing the public or selected default pipeline.
+- Accepted the fixed 64/2/24/80 finalist on the 100-pair DIV2K validation set after it improved both local metrics over 64/2/32/64 on every image, without using the 800-image train split or changing the public pipeline in the evidence milestone.
 
 ### Fixed
 
