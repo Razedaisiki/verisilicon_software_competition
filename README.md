@@ -4,11 +4,17 @@ This repository is the Rust software-track project for a dependency-free 2x imag
 
 The project provides an end-to-end dependency-free command-line path for strict
 PPM P6 and organizer-confirmed fixed packed RGB888 raw files. Public processing
-commands use the unchanged scalar `BicubicBaseline`.
+commands use the deterministic ungated `SelectedQualityPipeline`.
 
-Milestone 5 also provides an opt-in `QualityPipeline`. It is an unscored quality candidate, not a claim of measured superiority. The unchanged `BicubicBaseline` remains the scalar correctness oracle.
+The frozen `QualityPipeline` remains an opt-in library and evaluator path. The
+unchanged `BicubicBaseline` remains the scalar correctness oracle and local
+comparison anchor.
 
-The candidate changes only bicubic luma. It uses integer Sobel edge orientation, Q8 same-direction refinement with gain 64, Q8 luma sharpening with gain 48, and a radius-one anti-ringing envelope taken from the unenhanced bicubic luma. Chroma remains bicubic. Every changed luma sample is clamped to its original 3x3 local range.
+The selected pipeline changes only bicubic luma. It uses integer Sobel edge
+orientation with threshold 64 and axis ratio 2, Q8 same-direction refinement
+with gain 32, Q8 luma sharpening with gain 64, and a radius-one anti-ringing
+envelope taken from the unenhanced bicubic luma. Chroma remains bicubic. Every
+changed luma sample is clamped to its original 3x3 local range.
 
 ## Bicubic baseline
 
@@ -24,8 +30,8 @@ a Q8 gain-32 four-neighbor Laplacian refinement with a clamped local envelope,
 and half-pixel Q8 bilinear chroma. The reference slide does not provide these
 numerical details, so V1 is not claimed to be organizer byte-equivalent.
 
-The public `sr` commands remain on `BicubicBaseline`. Eval30 measured V1 below
-the bicubic anchor in both local quality metrics and below it in local
+The public `sr` commands use `SelectedQualityPipeline`. Eval30 measured V1
+below the bicubic anchor in both local quality metrics and below it in local
 processing throughput, so the experiment is retained for evidence rather than
 selected as the default.
 
@@ -84,7 +90,8 @@ Invalid arguments return status 2, processing failures return status 4, and succ
 
 Processing-only timing follows provisional assumption A-006. Timing starts immediately before the algorithm call and stops immediately after it, excluding decode and encode. Normal commands do not print timing values.
 
-`QualityPipeline` remains an opt-in library API and is not selected by the CLI.
+`SelectedQualityPipeline` is the CLI path. The original `QualityPipeline`
+remains frozen as an opt-in library and evaluator API.
 
 ## Performance diagnostics
 
@@ -207,7 +214,7 @@ powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Candidate confidence-ga
 
 The gated experiment suppresses residuals outside coherent edges, but Eval30
 measured it below the selected ungated candidate on every image. It remains an
-explicit diagnostic and does not change `QualityPipeline` or `sr.exe`.
+explicit diagnostic and is not selected by `sr.exe`.
 
 Run the deterministic nine-configuration coarse parameter sweep with
 five-fold category-stratified cross-validation:

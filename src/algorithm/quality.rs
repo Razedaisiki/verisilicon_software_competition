@@ -136,6 +136,40 @@ impl SuperResolution for QualityPipeline {
     }
 }
 
+/// Validated ungated quality candidate selected for public processing.
+///
+/// The frozen [`QualityPipeline`] remains available as a separate library and
+/// evaluator path.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SelectedQualityPipeline;
+
+impl SelectedQualityPipeline {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
+    }
+
+    pub fn process_with_policy(
+        &self,
+        input: &Image,
+        config: ProcessingConfig,
+        policy: ExecutionPolicy,
+    ) -> Result<Image, AlgorithmError> {
+        QualityPipeline::new().process_with_parameters(
+            input,
+            config,
+            policy,
+            SELECTED_UNGATED_PARAMETERS,
+        )
+    }
+}
+
+impl SuperResolution for SelectedQualityPipeline {
+    fn process(&self, input: &Image, config: ProcessingConfig) -> Result<Image, AlgorithmError> {
+        self.process_with_policy(input, config, ExecutionPolicy::Auto)
+    }
+}
+
 /// Isolated confidence-gated evaluation candidate.
 ///
 /// This does not replace [`QualityPipeline`] or the default command-line path.
@@ -512,8 +546,8 @@ fn zeroed_u8(length: usize) -> Result<Vec<u8>, AlgorithmError> {
 mod tests {
     use super::{
         ConfidenceGatedQualityPipeline, DEFAULT_QUALITY_PARAMETERS, EdgeOrientation,
-        QualityParameters, QualityPipeline, SELECTED_UNGATED_PARAMETERS, confidence_alpha_q8,
-        confidence_ramp_q8, detect_edge_orientation_unchecked,
+        QualityParameters, QualityPipeline, SELECTED_UNGATED_PARAMETERS, SelectedQualityPipeline,
+        confidence_alpha_q8, confidence_ramp_q8, detect_edge_orientation_unchecked,
         detect_edge_orientation_with_parameters, enhance_luma, enhance_luma_candidate,
         local_envelope,
     };
@@ -691,6 +725,24 @@ mod tests {
             )
             .unwrap();
         assert_eq!(explicit, public);
+    }
+
+    #[test]
+    fn selected_pipeline_equals_the_explicit_validated_parameters() {
+        let input = checker_detail(dimensions(9, 7), 2).unwrap();
+        let config = ProcessingConfig::new(input.dimensions());
+        let mut selected_outputs = Vec::new();
+        for policy in [ExecutionPolicy::Serial, ExecutionPolicy::Parallel] {
+            let selected = SelectedQualityPipeline::new()
+                .process_with_policy(&input, config, policy)
+                .unwrap();
+            let explicit = QualityPipeline::new()
+                .process_with_parameters(&input, config, policy, SELECTED_UNGATED_PARAMETERS)
+                .unwrap();
+            assert_eq!(selected, explicit);
+            selected_outputs.push(selected);
+        }
+        assert_eq!(selected_outputs[0], selected_outputs[1]);
     }
 
     #[test]

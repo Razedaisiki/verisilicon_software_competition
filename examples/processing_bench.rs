@@ -5,10 +5,9 @@ use std::error::Error;
 use std::hint::black_box;
 use std::process::ExitCode;
 use std::time::Instant;
-use verisilicon_sr::algorithm::quality::SELECTED_UNGATED_PARAMETERS;
 use verisilicon_sr::algorithm::{
     BicubicBaseline, ConfidenceGatedQualityPipeline, ExecutionPolicy, QualityPipeline,
-    RecommendedBaselineV1, selected_execution_policy,
+    RecommendedBaselineV1, SelectedQualityPipeline, selected_execution_policy,
 };
 use verisilicon_sr::fixtures::smooth_gradient;
 use verisilicon_sr::image::Image;
@@ -112,12 +111,9 @@ fn process(
         "baseline" => BicubicBaseline::new().process_with_policy(input, config, policy),
         "recommended" => RecommendedBaselineV1::new().process_with_policy(input, config, policy),
         "quality" => QualityPipeline::new().process_with_policy(input, config, policy),
-        "selected-ungated" => QualityPipeline::new().process_with_parameters(
-            input,
-            config,
-            policy,
-            SELECTED_UNGATED_PARAMETERS,
-        ),
+        "selected-ungated" => {
+            SelectedQualityPipeline::new().process_with_policy(input, config, policy)
+        }
         "confidence-gated" => {
             ConfidenceGatedQualityPipeline::new().process_with_policy(input, config, policy)
         }

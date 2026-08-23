@@ -1,9 +1,10 @@
 # Submission Algorithm Description
 
-The command-line processing path uses the repository's deterministic
-`BicubicBaseline`. It is a project-local development and evaluation anchor. It
-is not claimed to be byte-equivalent to the organizer's hidden public-bicubic
-LR generation or to an organizer reference implementation.
+The command-line processing path uses the repository's deterministic ungated
+`SelectedQualityPipeline`. It starts from `BicubicBaseline`, the project-local
+development and evaluation anchor. The anchor is not claimed to be
+byte-equivalent to the organizer's hidden public-bicubic LR generation or to
+an organizer reference implementation.
 
 Input RGB8 is converted to full-range YCbCr8 with the Q8 integer formulas in
 `src/algorithm/color.rs`. Each plane is scaled independently by a separable 2x
@@ -19,23 +20,26 @@ are clamped to the nearest border sample.
 
 Horizontal Q7 results remain signed. The vertical pass accumulates a signed
 Q14 value, rounds to nearest with exact halves away from zero, and clips only
-the final plane sample to 0 through 255. Scaled Y, Cb, and Cr are converted
-back to RGB8 with the fixed inverse formulas and clipping in
+the final plane sample to 0 through 255. Processed Y and scaled Cb and Cr are
+converted back to RGB8 with the fixed inverse formulas and clipping in
 `src/algorithm/color.rs`.
 
 The optimized scaler caches four horizontal rows. Tests retain a full signed
-intermediate scalar implementation as an exact oracle. Automatic parallelism
-uses at most three standard-library workers for the independent color planes;
-serial and parallel results are required to match the oracle byte for byte.
+intermediate scalar implementation as an exact scaling oracle. Automatic
+parallelism uses at most three standard-library workers for the independent
+color planes. Forced serial and parallel selected-pipeline results must match
+each other and the explicit selected-parameter path byte for byte.
 
-The optional `QualityPipeline` is not selected by the command-line interface
-and is not part of this submitted processing path.
+`SelectedQualityPipeline` enhances only the bicubic luma. Integer Sobel
+orientation uses edge threshold 64 and axis ratio 2. Samples are refined along
+the detected edge with Q8 gain 32, then receive a four-neighbor luma detail
+term with Q8 gain 64. Every result is clamped to the original bicubic luma's
+radius-one 3x3 envelope; chroma remains bicubic. All five Eval30 training folds
+independently selected this ungated tuple for both local metrics.
 
-The evaluation-only `SELECTED_UNGATED_PARAMETERS` retain the same arithmetic
-with edge threshold 64, axis ratio 2, directional Q8 gain 32, and sharpening
-Q8 gain 64. All five Eval30 training folds independently selected this tuple
-for both local metrics. It does not silently replace the frozen quality or CLI
-paths.
+The original `QualityPipeline` remains frozen and separately available to the
+library and evaluator. `SelectedQualityPipeline` is tested against an explicit
+call with `SELECTED_UNGATED_PARAMETERS` for exact equality.
 
 `ConfidenceGatedQualityPipeline` starts from that selected ungated result and
 blends its luma residual with an integer Q8 confidence. Confidence requires

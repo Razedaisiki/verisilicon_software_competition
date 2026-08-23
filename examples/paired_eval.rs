@@ -6,10 +6,9 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
-use verisilicon_sr::algorithm::quality::SELECTED_UNGATED_PARAMETERS;
 use verisilicon_sr::algorithm::{
-    BicubicBaseline, ConfidenceGatedQualityPipeline, ExecutionPolicy, QualityPipeline,
-    RecommendedBaselineV1, SuperResolution,
+    BicubicBaseline, ConfidenceGatedQualityPipeline, QualityPipeline, RecommendedBaselineV1,
+    SelectedQualityPipeline, SuperResolution,
 };
 use verisilicon_sr::image::Image;
 use verisilicon_sr::io::ppm::PpmP6Codec;
@@ -357,12 +356,7 @@ fn score_pair(
     .map_err(|failure| error(format!("baseline failed for {}: {failure}", pair.id)))?;
     let candidate = match candidate_selection {
         CandidateSelection::Quality => QualityPipeline::new().process(&lr, config),
-        CandidateSelection::SelectedUngated => QualityPipeline::new().process_with_parameters(
-            &lr,
-            config,
-            ExecutionPolicy::Auto,
-            SELECTED_UNGATED_PARAMETERS,
-        ),
+        CandidateSelection::SelectedUngated => SelectedQualityPipeline::new().process(&lr, config),
         CandidateSelection::ConfidenceGated => {
             ConfidenceGatedQualityPipeline::new().process(&lr, config)
         }

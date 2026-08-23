@@ -1,6 +1,6 @@
-//! Testable command-line routing and baseline processing.
+//! Testable command-line routing and selected quality processing.
 
-use crate::algorithm::{BicubicBaseline, SuperResolution};
+use crate::algorithm::{SelectedQualityPipeline, SuperResolution};
 use crate::image::Image;
 use crate::io::ppm::PpmP6Codec;
 use crate::io::raw::RawRgb8Codec;
@@ -149,7 +149,7 @@ fn process_ppm(input: &Path, output: &Path) -> Result<Duration, CliError> {
             dimensions: None,
         },
     )?;
-    let timed = process_baseline(&image)?;
+    let timed = process_selected_quality(&image)?;
     codec.encode(output, ImageFormat::PpmP6, &timed.image)?;
     Ok(timed.processing_time)
 }
@@ -206,15 +206,15 @@ fn process_raw_rgb8(
             dimensions: Some(dimensions),
         },
     )?;
-    let timed = process_baseline(&image)?;
+    let timed = process_selected_quality(&image)?;
     codec.encode(output, ImageFormat::RawRgb8, &timed.image)?;
     Ok(timed.processing_time)
 }
 
-fn process_baseline(image: &Image) -> Result<TimedImage, CliError> {
+fn process_selected_quality(image: &Image) -> Result<TimedImage, CliError> {
     let config = ProcessingConfig::new(image.dimensions());
     let start = Instant::now();
-    let output = BicubicBaseline::new().process(image, config)?;
+    let output = SelectedQualityPipeline::new().process(image, config)?;
     let processing_time = start.elapsed();
     Ok(TimedImage {
         image: output,
@@ -514,7 +514,7 @@ mod tests {
         let encoded = fs::read(&output).unwrap();
         assert_eq!(encoded.len(), OFFICIAL_RAW_OUTPUT_BYTE_COUNT);
         assert!(!encoded.starts_with(b"P6\n"));
-        assert_eq!(fnv1a64(&encoded), 13_293_153_587_469_784_453);
+        assert_eq!(fnv1a64(&encoded), 12_454_278_094_118_301_282);
         fs::remove_file(input).unwrap();
         fs::remove_file(output).unwrap();
     }
