@@ -3,6 +3,7 @@
 pub mod bicubic;
 pub mod color;
 pub mod quality;
+pub mod recommended;
 
 use crate::image::Image;
 use crate::spec::{Dimensions, ProcessingConfig, SpecError};
@@ -11,6 +12,7 @@ use std::thread::{self, ScopedJoinHandle};
 
 pub use bicubic::BicubicBaseline;
 pub use quality::QualityPipeline;
+pub use recommended::RecommendedBaselineV1;
 
 /// Maximum number of independent channel workers used by the scalar pipelines.
 pub const MAX_CHANNEL_WORKERS: usize = 3;

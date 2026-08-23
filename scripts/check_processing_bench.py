@@ -9,6 +9,7 @@ import sys
 
 EXPECTED_CHECKSUMS = {
     "baseline": "65b8c09ec62e070b",
+    "recommended": "1a4040a279219597",
     "quality": "1211042eb00b138c",
 }
 

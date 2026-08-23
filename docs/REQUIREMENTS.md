@@ -58,6 +58,7 @@ These interfaces are planning defaults, not official facts. Their definitions an
 | A-006 | Initial performance measurement uses a processing-only timing boundary. | Provisional | Project planning |
 | A-007 | Batch mode is non-recursive, deterministically ordered, and refuses existing outputs. | Provisional | Project planning |
 | A-008 | The existing luma PSNR and global luma SSIM remain legacy synthetic diagnostics; the paired HR/LR local-window contract is documented separately. | Provisional | Project planning and `docs/EVALUATION.md` |
+| A-009 | The organizer-recommended Y-nearest-plus-convolution and UV-bilinear architecture uses explicitly project-selected fixed-point details until numerical parameters are supplied. | Project-local | User-supplied organizer reference slide |
 
 ## Missing official package details
 

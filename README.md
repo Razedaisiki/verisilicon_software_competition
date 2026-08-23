@@ -16,6 +16,19 @@ The baseline converts RGB8 to full-range YCbCr8 using documented Q8 integer coef
 
 The two exact Q7 polyphase weight sets are `[-3, 29, 111, -9]` and `[-9, 111, 29, -3]`. Horizontal results remain signed until the vertical pass. Borders are clamped, combined Q14 results are rounded to nearest with halves away from zero, and only final samples are clipped to the 8-bit range.
 
+## Recommended architecture experiment
+
+`RecommendedBaselineV1` is a development-only deterministic instance of the
+organizer-supplied reference architecture. It uses nearest-neighbor 2x luma,
+a Q8 gain-32 four-neighbor Laplacian refinement with a clamped local envelope,
+and half-pixel Q8 bilinear chroma. The reference slide does not provide these
+numerical details, so V1 is not claimed to be organizer byte-equivalent.
+
+The public `sr` commands remain on `BicubicBaseline`. Eval30 measured V1 below
+the bicubic anchor in both local quality metrics and below it in local
+processing throughput, so the experiment is retained for evidence rather than
+selected as the default.
+
 ## PPM P6 codec
 
 The library codec accepts RGB8 PPM P6 data with decimal width and height, `maxval` exactly 255, legal header whitespace, and comments before header values. It requires an exact packed RGB8 raster with no trailing bytes. Encoding uses a deterministic header and raster representation.
@@ -87,6 +100,7 @@ Run the reproducible processing-only benchmark with:
 
 ```text
 cargo run --locked --release --example processing_bench -- baseline auto 640 360 5
+cargo run --locked --release --example processing_bench -- recommended auto 640 360 5
 cargo run --locked --release --example processing_bench -- quality auto 640 360 5
 ```
 
@@ -173,6 +187,13 @@ The script verifies the locked database, builds the dependency-free Rust
 candidate on every LR image, and writes `target/eval30-report.csv`. It refuses
 to overwrite an existing report. See `evaluation/eval30/RESULTS.md` for the
 first byte-reproducible complete comparison.
+
+Select the development-only recommended architecture explicitly and use a
+distinct report filename:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Baseline recommended -Report target/eval30-recommended-v1.csv
+```
 
 ## Development checks
 

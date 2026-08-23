@@ -153,8 +153,25 @@ a material repeatable improvement over Auto threaded scalar processing.
 
 ## CI benchmark correctness
 
-`scripts/check_processing_bench.py` runs the release benchmark for both
+`scripts/check_processing_bench.py` runs the release benchmark for all three
 pipelines with forced serial and parallel policies on an 8x5 image. It checks
 the requested and selected policies, dimensions, fixed checksums, and exact
 serial/parallel checksum equality. CI does not inspect elapsed time or enforce a
 wall-clock threshold.
+
+## RecommendedBaselineV1 comparison
+
+On 2026-08-23, the same Ryzen 5 5500U Windows host ran five interleaved release
+processes per pipeline. Each process used one unmeasured warm-up and three
+measured 1920x1080-to-3840x2160 frames with Auto policy.
+
+| Pipeline | Median FPS | FPS range | Change from bicubic |
+| --- | ---: | ---: | ---: |
+| Bicubic baseline | 10.134 | 9.004-10.659 | reference |
+| RecommendedBaselineV1 | 7.514 | 6.984-8.116 | 25.9% lower |
+
+Both pipelines produced checksum `98e3c40731c269e9` on the smooth-gradient
+fixture. The recommended experiment performs an extra nearest-plane allocation
+and full 3x3 luma refinement scan; its simpler interpolation kernel did not
+produce higher end-to-end throughput in this implementation. These local
+measurements are diagnostic and are not an official timing result.

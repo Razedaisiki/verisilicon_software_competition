@@ -1,6 +1,8 @@
 param(
     [string]$PreparedDirectory = "evaluation/eval30/local/prepared",
-    [string]$Report = "target/eval30-report.csv"
+    [string]$Report = "target/eval30-report.csv",
+    [ValidateSet("bicubic", "recommended")]
+    [string]$Baseline = "bicubic"
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,7 +35,7 @@ try {
     }
 
     New-Item -ItemType Directory -Force -Path $reportParent | Out-Null
-    & $binaryPath $manifestPath $reportPath
+    & $binaryPath $manifestPath $reportPath $Baseline
     if ($LASTEXITCODE -ne 0) {
         throw "Paired evaluation failed with exit code $LASTEXITCODE."
     }

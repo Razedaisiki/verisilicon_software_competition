@@ -159,19 +159,27 @@ Any failure removes the temporary file and publishes no partial report.
 ## Local implementation
 
 The dependency-free `paired_eval` Rust example implements this contract for
-the existing `BicubicBaseline` and `QualityPipeline` without changing either
-pipeline. On Windows, the complete locked Eval30 workflow is:
+the existing `QualityPipeline` and a selected baseline without changing those
+pipelines. The default baseline selector is `bicubic`. The optional
+`recommended` selector chooses the isolated `RecommendedBaselineV1` experiment.
+On Windows, the complete locked Eval30 workflow is:
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\evaluate.ps1
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Baseline recommended -Report target/eval30-recommended-v1.csv
 ```
 
 For a prepared compatible manifest and an explicit report path, the evaluator
 can also be run directly:
 
 ```text
-cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/report.csv
+cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/report.csv bicubic
+cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/recommended-report.csv recommended
 ```
+
+The CSV keeps the versioned `baseline` role label, so every retained report
+must use a distinct filename and record the selector command alongside its
+hash. Omitting the selector remains byte-compatible with explicit `bicubic`.
 
 The Python dataset utilities and Rust evaluator are development-only tools and
 are not included in the Windows submission candidate.

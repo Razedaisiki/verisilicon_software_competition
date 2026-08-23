@@ -69,6 +69,13 @@ powershell -ExecutionPolicy Bypass -File .\evaluate.ps1
 The default report is `target/eval30-report.csv`, and an existing report is
 never overwritten. `RESULTS.md` records the first complete reproducible run.
 
+To compare the development-only recommended architecture against the same
+candidate and HR references:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Baseline recommended -Report target/eval30-recommended-v1.csv
+```
+
 ## Licensing
 
 The tracked catalogs are the attribution and provenance index. Images remain

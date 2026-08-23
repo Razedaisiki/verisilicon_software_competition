@@ -30,3 +30,9 @@ serial and parallel results are required to match the oracle byte for byte.
 
 The optional `QualityPipeline` is not selected by the command-line interface
 and is not part of this submitted processing path.
+
+The optional `RecommendedBaselineV1` is also excluded from the command-line
+processing path. It is a deterministic development experiment based on the
+organizer-supplied RGB-to-YUV, nearest-plus-convolution luma, and bilinear
+chroma architecture. Its missing numerical details are fixed by project-local
+assumption A-009. Eval30 evidence did not justify replacing the bicubic path.

@@ -45,3 +45,28 @@ evaluation-automation milestone.
 
 The CSV itself remains a generated local artifact under `target/` and is not
 committed. Recreate it with `evaluate.ps1`.
+
+## RecommendedBaselineV1 experiment
+
+The organizer reference architecture was instantiated with the project-local
+A-009 arithmetic and selected explicitly with:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Baseline recommended -Report target/eval30-recommended-v1.csv
+```
+
+| Pipeline | Mean Y-PSNR (dB) | Mean Y-SSIM |
+| --- | ---: | ---: |
+| Bicubic baseline | 32.871287 | 0.927772122 |
+| RecommendedBaselineV1 | 31.004843 | 0.912974736 |
+| Quality candidate | 32.900263 | 0.927909630 |
+
+RecommendedBaselineV1 minus bicubic is `-1.866444 dB` and `-0.014797386`
+Y-SSIM. The candidate minus RecommendedBaselineV1 report delta is
+`+1.895419 dB` and `+0.014934894` Y-SSIM. The repeated recommended reports
+were byte-identical with SHA-256
+`fbed4df60bd856bc737abff79b61227ce0f625b2e3eda40ae71200ce78bea47b`.
+
+The experiment is worse than the existing bicubic anchor in all three content
+categories. It therefore remains an explicit evaluation option and does not
+replace the public runtime baseline.

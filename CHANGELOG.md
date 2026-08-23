@@ -73,6 +73,9 @@ All notable project changes are recorded in this file.
 - Added the fixed-kernel valid-window Y-MSSIM implementation while preserving the legacy global SSIM diagnostic.
 - Added a dependency-free paired Rust evaluator with strict manifest validation, equal-image compensated reduction, exact CSV output, and atomic non-overwriting publication.
 - Added a one-command Windows Eval30 workflow and recorded the first byte-reproducible 30-image baseline-versus-candidate result.
+- Added an isolated deterministic `RecommendedBaselineV1` experiment for the organizer-suggested nearest-plus-convolution luma and bilinear-chroma architecture.
+- Added explicit bicubic or recommended baseline selection to the paired evaluator while preserving bicubic default report compatibility.
+- Recorded reproducible Eval30 and local 1080p throughput evidence showing that RecommendedBaselineV1 does not justify replacing the bicubic runtime baseline.
 
 ### Fixed
 

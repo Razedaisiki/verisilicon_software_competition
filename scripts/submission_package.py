@@ -27,6 +27,7 @@ SOURCE_FILES = (
     "src/algorithm/bicubic.rs",
     "src/algorithm/color.rs",
     "src/algorithm/quality.rs",
+    "src/algorithm/recommended.rs",
     "src/cli.rs",
     "src/fixtures.rs",
     "src/image.rs",

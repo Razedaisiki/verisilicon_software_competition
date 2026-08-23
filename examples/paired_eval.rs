@@ -6,13 +6,15 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
-use verisilicon_sr::algorithm::{BicubicBaseline, QualityPipeline, SuperResolution};
+use verisilicon_sr::algorithm::{
+    BicubicBaseline, QualityPipeline, RecommendedBaselineV1, SuperResolution,
+};
 use verisilicon_sr::image::Image;
 use verisilicon_sr::io::ppm::PpmP6Codec;
 use verisilicon_sr::metrics::{Psnr, luma_mssim, luma_psnr};
 use verisilicon_sr::spec::ProcessingConfig;
 
-const USAGE: &str = "Usage: paired_eval <pairs.tsv> <report.csv>";
+const USAGE: &str = "Usage: paired_eval <pairs.tsv> <report.csv> [bicubic|recommended]";
 const HEADER: &str = "record_type,pipeline,id,lr_path,hr_path,width,height,image_count,infinite_psnr_count,psnr_y_db,ssim_y\n";
 
 #[derive(Debug)]
@@ -82,13 +84,45 @@ struct DatasetMetrics {
     infinite_psnr_count: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BaselineSelection {
+    Bicubic,
+    Recommended,
+}
+
+fn parse_baseline(value: &str) -> Result<BaselineSelection, EvalError> {
+    match value {
+        "bicubic" => Ok(BaselineSelection::Bicubic),
+        "recommended" => Ok(BaselineSelection::Recommended),
+        _ => Err(error(format!(
+            "invalid baseline selector {value:?}; expected bicubic or recommended"
+        ))),
+    }
+}
+
 fn main() -> ExitCode {
     let arguments: Vec<OsString> = env::args_os().skip(1).collect();
-    if arguments.len() != 2 {
+    if !(2..=3).contains(&arguments.len()) {
         eprintln!("{USAGE}");
         return ExitCode::from(2);
     }
-    match run(Path::new(&arguments[0]), Path::new(&arguments[1])) {
+    let result = if let Some(value) = arguments.get(2) {
+        let Some(value) = value.to_str() else {
+            eprintln!("Error: baseline selector must be valid UTF-8");
+            return ExitCode::from(2);
+        };
+        let baseline = match parse_baseline(value) {
+            Ok(selection) => selection,
+            Err(failure) => {
+                eprintln!("Error: {failure}");
+                return ExitCode::from(2);
+            }
+        };
+        run_with_baseline(Path::new(&arguments[0]), Path::new(&arguments[1]), baseline)
+    } else {
+        run(Path::new(&arguments[0]), Path::new(&arguments[1]))
+    };
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(failure) => {
             eprintln!("Error: {failure}");
@@ -98,6 +132,14 @@ fn main() -> ExitCode {
 }
 
 fn run(manifest: &Path, report: &Path) -> Result<(), EvalError> {
+    run_with_baseline(manifest, report, BaselineSelection::Bicubic)
+}
+
+fn run_with_baseline(
+    manifest: &Path,
+    report: &Path,
+    baseline: BaselineSelection,
+) -> Result<(), EvalError> {
     if report.exists() {
         return Err(error(format!(
             "refusing to overwrite existing report: {}",
@@ -107,7 +149,7 @@ fn run(manifest: &Path, report: &Path) -> Result<(), EvalError> {
     let pairs = load_and_validate_pairs(manifest)?;
     let mut scores = Vec::with_capacity(pairs.len());
     for pair in pairs {
-        scores.push(score_pair(pair)?);
+        scores.push(score_pair(pair, baseline)?);
     }
     let report_bytes = render_report(&scores)?;
     write_atomic(report, &report_bytes)
@@ -239,13 +281,15 @@ fn decode_ppm(path: &Path) -> Result<Image, EvalError> {
         .map_err(|failure| error(format!("failed to decode {}: {failure}", path.display())))
 }
 
-fn score_pair(pair: Pair) -> Result<PairScores, EvalError> {
+fn score_pair(pair: Pair, baseline_selection: BaselineSelection) -> Result<PairScores, EvalError> {
     let lr = decode_ppm(&pair.lr_path)?;
     let hr = decode_ppm(&pair.hr_path)?;
     let config = ProcessingConfig::new(lr.dimensions());
-    let baseline = BicubicBaseline::new()
-        .process(&lr, config)
-        .map_err(|failure| error(format!("baseline failed for {}: {failure}", pair.id)))?;
+    let baseline = match baseline_selection {
+        BaselineSelection::Bicubic => BicubicBaseline::new().process(&lr, config),
+        BaselineSelection::Recommended => RecommendedBaselineV1::new().process(&lr, config),
+    }
+    .map_err(|failure| error(format!("baseline failed for {}: {failure}", pair.id)))?;
     let candidate = QualityPipeline::new()
         .process(&lr, config)
         .map_err(|failure| error(format!("candidate failed for {}: {failure}", pair.id)))?;
@@ -446,7 +490,10 @@ fn write_atomic(report: &Path, bytes: &[u8]) -> Result<(), EvalError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HEADER, Metrics, dataset_metrics, load_and_validate_pairs, run, write_atomic};
+    use super::{
+        BaselineSelection, HEADER, Metrics, dataset_metrics, load_and_validate_pairs,
+        parse_baseline, run, run_with_baseline, write_atomic,
+    };
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -670,5 +717,46 @@ mod tests {
         let aggregate = dataset_metrics(infinite.iter(), infinite.len());
         assert_eq!(aggregate.psnr, Psnr::Infinite);
         assert_eq!(aggregate.infinite_psnr_count, 1);
+    }
+
+    #[test]
+    fn selector_is_strict_default_is_compatible_and_recommended_is_used() {
+        assert_eq!(
+            parse_baseline("bicubic").unwrap(),
+            BaselineSelection::Bicubic
+        );
+        assert_eq!(
+            parse_baseline("recommended").unwrap(),
+            BaselineSelection::Recommended
+        );
+        assert!(parse_baseline("other").is_err());
+        let root = temporary_directory("recommended");
+        let (lr_path, hr_path) = add_pair(&root, "case", 41);
+        let manifest = root.join("pairs.tsv");
+        fs::write(
+            &manifest,
+            format!("id\tlr_path\thr_path\ncase\t{lr_path}\t{hr_path}\n"),
+        )
+        .unwrap();
+        let default_report = root.join("default.csv");
+        let bicubic_report = root.join("bicubic.csv");
+        let recommended_report = root.join("recommended.csv");
+        run(&manifest, &default_report).unwrap();
+        run_with_baseline(&manifest, &bicubic_report, BaselineSelection::Bicubic).unwrap();
+        run_with_baseline(
+            &manifest,
+            &recommended_report,
+            BaselineSelection::Recommended,
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read(&default_report).unwrap(),
+            fs::read(&bicubic_report).unwrap()
+        );
+        let recommended = fs::read_to_string(recommended_report).unwrap();
+        let baseline_row = recommended.lines().nth(1).unwrap();
+        assert!(baseline_row.starts_with("image,baseline,case,"));
+        assert!(!baseline_row.contains(",inf,1.000000000"));
+        fs::remove_dir_all(root).unwrap();
     }
 }

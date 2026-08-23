@@ -70,6 +70,28 @@ These assumptions enable implementation planning before all committee package de
 - Reason: deterministic local diagnostics are needed for regression testing and visual QA while the official metric implementation and dataset are unavailable.
 - Replacement boundary: keep diagnostic metrics separate from official score reporting. Add the committee implementation as a distinct evaluation path and do not silently reinterpret existing regression thresholds.
 
+## A-009: Recommended architecture has project-selected fixed-point details
+
+- Organizer guidance: the supplied reference slide presents a proven starting
+  architecture that converts RGB to YUV, applies nearest-neighbor 2x plus a
+  3x3 luma sharpening convolution, applies bilinear or polyphase interpolation
+  to chroma, then converts back to RGB.
+- Missing numerical details: the slide does not specify the YUV matrix or
+  range, convolution coefficients, coordinate mapping, border policy,
+  rounding, clipping, or anti-ringing rule. It also labels bicubic, Lanczos,
+  edge-adaptive, and reconstruction methods as possible directions rather than
+  defining one mandatory byte-exact baseline.
+- Project-local V1 rule: retain A-003 color conversion; use nearest-neighbor
+  luma 2x, Q8 four-neighbor Laplacian gain 32 with a clamped 3x3 local
+  envelope, and separable half-pixel Q8 bilinear chroma with phase weights 64
+  and 192.
+- Non-equivalence rule: `RecommendedBaseline` is an experimental deterministic
+  instance of the suggested architecture, not a claim of organizer byte
+  equivalence and not the public runtime default until measured and reviewed.
+- Replacement boundary: keep the complete implementation in its own pipeline.
+  Change coefficients or select it publicly only in a separate measured
+  algorithm decision.
+
 ## Change control
 
 - Do not spread provisional values across CLI, I/O, algorithm, and benchmark code.
