@@ -42,21 +42,24 @@ pub const DEFAULT_QUALITY_PARAMETERS: QualityParameters = QualityParameters {
     sharpen_gain_q8: SHARPEN_GAIN_Q8,
 };
 
-/// Ungated parameters selected by the milestone-one cross-validation sweep.
-pub const SELECTED_UNGATED_PARAMETERS: QualityParameters = QualityParameters {
+/// Frozen 64/2/32/64 anchor used by the recorded fine sweep and experiments.
+pub const HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS: QualityParameters = QualityParameters {
     edge_threshold: 64,
     axis_dominance_ratio: 2,
     directional_refine_gain_q8: 32,
     sharpen_gain_q8: 64,
 };
 
-/// Evaluation-only finalist from the bounded fine sweep.
-pub const FINE_FINALIST_PARAMETERS: QualityParameters = QualityParameters {
+/// Accepted ungated parameters selected by fine sweep and paired validation.
+pub const SELECTED_UNGATED_PARAMETERS: QualityParameters = QualityParameters {
     edge_threshold: 64,
     axis_dominance_ratio: 2,
     directional_refine_gain_q8: 24,
     sharpen_gain_q8: 80,
 };
+
+/// Historical evaluation label for the parameters that are now selected.
+pub const FINE_FINALIST_PARAMETERS: QualityParameters = SELECTED_UNGATED_PARAMETERS;
 
 impl QualityParameters {
     fn validate(self) -> Result<Self, AlgorithmError> {
@@ -181,42 +184,12 @@ impl SuperResolution for SelectedQualityPipeline {
     }
 }
 
-/// Evaluation-only fine-sweep finalist pending paired validation.
-///
-/// This does not replace [`SelectedQualityPipeline`] or any public default.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct FineFinalistQualityPipeline;
-
-impl FineFinalistQualityPipeline {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self
-    }
-
-    pub fn process_with_policy(
-        &self,
-        input: &Image,
-        config: ProcessingConfig,
-        policy: ExecutionPolicy,
-    ) -> Result<Image, AlgorithmError> {
-        QualityPipeline::new().process_with_parameters(
-            input,
-            config,
-            policy,
-            FINE_FINALIST_PARAMETERS,
-        )
-    }
-}
-
-impl SuperResolution for FineFinalistQualityPipeline {
-    fn process(&self, input: &Image, config: ProcessingConfig) -> Result<Image, AlgorithmError> {
-        self.process_with_policy(input, config, ExecutionPolicy::Auto)
-    }
-}
+/// Historical evaluator label retained for report-command reproducibility.
+pub type FineFinalistQualityPipeline = SelectedQualityPipeline;
 
 /// Isolated selected-ungated candidate with bilinear Cb/Cr scaling.
 ///
-/// Luma remains the exact selected 64/2/32/64 bicubic-plus-enhancement path.
+/// Luma remains the historical 64/2/32/64 bicubic-plus-enhancement path.
 /// This candidate is never selected by the public command-line path.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BilinearChromaQualityPipeline;
@@ -239,7 +212,7 @@ impl BilinearChromaQualityPipeline {
             scale_plane_2x,
             scale_chroma_bilinear_2x,
             policy,
-            SELECTED_UNGATED_PARAMETERS,
+            HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS,
             false,
         )
     }
@@ -251,7 +224,7 @@ impl SuperResolution for BilinearChromaQualityPipeline {
     }
 }
 
-/// Isolated confidence-gated evaluation candidate.
+/// Isolated confidence-gated historical evaluation candidate.
 ///
 /// This does not replace [`QualityPipeline`] or the default command-line path.
 #[derive(Clone, Copy, Debug, Default)]
@@ -275,7 +248,7 @@ impl ConfidenceGatedQualityPipeline {
             scale_plane_2x,
             scale_plane_2x,
             policy,
-            SELECTED_UNGATED_PARAMETERS,
+            HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS,
             true,
         )
     }
@@ -879,10 +852,11 @@ fn zeroed_u8(length: usize) -> Result<Vec<u8>, AlgorithmError> {
 mod tests {
     use super::{
         BilinearChromaQualityPipeline, ConfidenceGatedQualityPipeline, DEFAULT_QUALITY_PARAMETERS,
-        EdgeOrientation, FINE_FINALIST_PARAMETERS, FineFinalistQualityPipeline, Neighborhood3x3,
-        QualityParameters, QualityPipeline, SELECTED_UNGATED_PARAMETERS, SelectedQualityPipeline,
-        confidence_alpha_q8, confidence_alpha_q8_reference, confidence_alpha_q8_with_neighborhood,
-        confidence_ramp_q8, detect_edge_orientation_reference, detect_edge_orientation_unchecked,
+        EdgeOrientation, FINE_FINALIST_PARAMETERS, FineFinalistQualityPipeline,
+        HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS, Neighborhood3x3, QualityParameters,
+        QualityPipeline, SELECTED_UNGATED_PARAMETERS, SelectedQualityPipeline, confidence_alpha_q8,
+        confidence_alpha_q8_reference, confidence_alpha_q8_with_neighborhood, confidence_ramp_q8,
+        detect_edge_orientation_reference, detect_edge_orientation_unchecked,
         detect_edge_orientation_with_parameters, enhance_luma, enhance_luma_candidate,
         enhance_luma_candidate_reference, local_envelope, local_envelope_reference,
     };
@@ -928,9 +902,10 @@ mod tests {
         vec![constant, patterned, checker, impulse]
     }
 
-    fn selected_composition(
+    fn quality_composition(
         input: &Image,
         chroma_scaler: fn(&[u8], Dimensions) -> Result<Vec<u8>, crate::algorithm::AlgorithmError>,
+        parameters: QualityParameters,
     ) -> Image {
         let dimensions = input.dimensions();
         let mut y = Vec::with_capacity(input.pixels().len());
@@ -946,7 +921,7 @@ mod tests {
         let y = enhance_luma_candidate(
             &scale_plane_2x(&y, dimensions).unwrap(),
             output_dimensions,
-            SELECTED_UNGATED_PARAMETERS,
+            parameters,
             false,
         )
         .unwrap();
@@ -988,7 +963,11 @@ mod tests {
         for (width, height) in dimension_cases {
             let image_dimensions = dimensions(width as u32, height as u32);
             for plane in deterministic_luma_planes(width, height) {
-                for parameters in [DEFAULT_QUALITY_PARAMETERS, SELECTED_UNGATED_PARAMETERS] {
+                for parameters in [
+                    DEFAULT_QUALITY_PARAMETERS,
+                    HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS,
+                    SELECTED_UNGATED_PARAMETERS,
+                ] {
                     for confidence_gated in [false, true] {
                         assert_eq!(
                             enhance_luma_candidate(
@@ -1233,7 +1212,7 @@ mod tests {
     }
 
     #[test]
-    fn fine_finalist_is_exact_explicit_repeatable_and_isolated() {
+    fn promoted_selection_and_fine_finalist_alias_are_exact_and_repeatable() {
         assert_eq!(
             FINE_FINALIST_PARAMETERS,
             QualityParameters {
@@ -1245,6 +1224,16 @@ mod tests {
         );
         assert_eq!(
             SELECTED_UNGATED_PARAMETERS,
+            QualityParameters {
+                edge_threshold: 64,
+                axis_dominance_ratio: 2,
+                directional_refine_gain_q8: 24,
+                sharpen_gain_q8: 80,
+            }
+        );
+        assert_eq!(FINE_FINALIST_PARAMETERS, SELECTED_UNGATED_PARAMETERS);
+        assert_eq!(
+            HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS,
             QualityParameters {
                 edge_threshold: 64,
                 axis_dominance_ratio: 2,
@@ -1263,7 +1252,11 @@ mod tests {
             let explicit = QualityPipeline::new()
                 .process_with_parameters(&input, config, policy, FINE_FINALIST_PARAMETERS)
                 .unwrap();
+            let selected = SelectedQualityPipeline::new()
+                .process_with_policy(&input, config, policy)
+                .unwrap();
             assert_eq!(finalist, explicit);
+            assert_eq!(finalist, selected);
             assert_eq!(
                 finalist,
                 pipeline
@@ -1296,7 +1289,11 @@ mod tests {
         ];
         for input in inputs {
             let config = ProcessingConfig::new(input.dimensions());
-            let expected = selected_composition(&input, scale_chroma_bilinear_2x);
+            let expected = quality_composition(
+                &input,
+                scale_chroma_bilinear_2x,
+                HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS,
+            );
             let pipeline = BilinearChromaQualityPipeline::new();
             let serial = pipeline
                 .process_with_policy(&input, config, ExecutionPolicy::Serial)
@@ -1337,7 +1334,10 @@ mod tests {
         let selected = SelectedQualityPipeline::new()
             .process_with_policy(&input, config, ExecutionPolicy::Serial)
             .unwrap();
-        assert_eq!(selected, selected_composition(&input, scale_plane_2x));
+        assert_eq!(
+            selected,
+            quality_composition(&input, scale_plane_2x, SELECTED_UNGATED_PARAMETERS,)
+        );
         let bilinear = BilinearChromaQualityPipeline::new()
             .process_with_policy(&input, config, ExecutionPolicy::Serial)
             .unwrap();

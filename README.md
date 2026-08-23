@@ -12,7 +12,7 @@ comparison anchor.
 
 The selected pipeline changes only bicubic luma. It uses integer Sobel edge
 orientation with threshold 64 and axis ratio 2, Q8 same-direction refinement
-with gain 32, Q8 luma sharpening with gain 64, and a radius-one anti-ringing
+with gain 24, Q8 luma sharpening with gain 80, and a radius-one anti-ringing
 envelope taken from the unenhanced bicubic luma. Chroma remains bicubic. Every
 changed luma sample is clamped to its original 3x3 local range.
 
@@ -36,10 +36,11 @@ processing throughput, so the experiment is retained for evidence rather than
 selected as the default.
 
 `BilinearChromaQualityPipeline` is another explicit negative experiment. It
-keeps the selected bicubic-plus-enhanced luma path and changes only Cb/Cr to
-bilinear 2x scaling. Eval30 measured it slightly below the selected pipeline in
-both Y metrics, and interleaved 1080p runs found no repeatable speed gain. The
-public command-line path therefore retains bicubic chroma.
+keeps the historical `64/2/32/64` bicubic-plus-enhanced luma path and changes
+only Cb/Cr to bilinear 2x scaling. Eval30 measured it slightly below that
+historical control in both Y metrics, and interleaved 1080p runs found no
+repeatable speed gain. The public command-line path therefore retains bicubic
+chroma.
 
 ## PPM P6 codec
 
@@ -241,16 +242,17 @@ cargo run --locked --release --example paired_eval -- evaluation/div2k/local/pre
 cargo run --locked --release --example paired_eval -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-fine-finalist-report.csv bicubic fine-finalist
 ```
 
-The first held-out 100-image validation run placed the selected candidate above
-the local bicubic anchor by `+0.168886 dB` Y-PSNR and `+0.003565996` Y-SSIM.
-See `evaluation/div2k/RESULTS.md`; this is local development evidence, not an
-official score.
+The first held-out 100-image validation run placed the then-selected
+`64/2/32/64` candidate above the local bicubic anchor by `+0.168886 dB`
+Y-PSNR and `+0.003565996` Y-SSIM. See `evaluation/div2k/RESULTS.md`; this is
+local development evidence, not an official score.
 
 The `fine-finalist` selector evaluates only the Eval30 fine-sweep finalist
 `64/2/24/80`. On the separate 100-pair comparison it improved over the previous
 selection by `+0.051761 dB` Y-PSNR and `+0.000836439` Y-SSIM, with both metrics
-positive on every image. The selector remains isolated until the separate
-promotion milestone changes `sr.exe` and `SELECTED_UNGATED_PARAMETERS`.
+positive on every image. Those accepted parameters now drive public `sr.exe`
+processing through `SELECTED_UNGATED_PARAMETERS`; `fine-finalist` remains a
+compatibility label and produces the same output as `selected-ungated`.
 
 ## Local paired evaluation dataset
 
@@ -293,17 +295,18 @@ distinct report filename:
 powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Baseline recommended -Report target/eval30-recommended-v1.csv
 ```
 
-Evaluate the coarse-sweep winner or the isolated confidence-gated experiment
-against the bicubic anchor with distinct report names:
+Evaluate the current accepted selection or the historical confidence-gated
+experiment against the bicubic anchor with distinct report names:
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Candidate selected-ungated -Report target/eval30-selected-ungated.csv
 powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Candidate confidence-gated -Report target/eval30-confidence-gated.csv
 ```
 
-The gated experiment suppresses residuals outside coherent edges, but Eval30
-measured it below the selected ungated candidate on every image. It remains an
-explicit diagnostic and is not selected by `sr.exe`.
+The gated experiment suppresses residuals outside coherent edges. Its recorded
+Eval30 comparison used the historical `64/2/32/64` ungated control and measured
+the gate below that control on every image. It remains an explicit diagnostic
+and is not selected by `sr.exe`.
 
 Run the deterministic nine-configuration coarse parameter sweep with
 five-fold category-stratified cross-validation:
@@ -313,8 +316,8 @@ powershell -ExecutionPolicy Bypass -File .\sweep.ps1
 ```
 
 An explicit Eval30-only fine screening mode evaluates 32 bounded candidates
-around the selected `64/2/32/64` luma parameters and reports deltas against
-that selected configuration. Coarse remains the default:
+around the historical selected `64/2/32/64` luma parameters and reports deltas
+against that frozen comparison anchor. Coarse remains the default:
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\sweep.ps1 -Search Fine -Report target/quality-fine-sweep.csv

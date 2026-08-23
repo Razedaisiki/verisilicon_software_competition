@@ -88,6 +88,8 @@ All notable project changes are recorded in this file.
 - Recorded the bounded Eval30 fine sweep selecting 64/2/24/80 for both metrics in every fold, with positive out-of-fold and per-category deltas, while leaving the public pipeline unchanged pending one 100-pair validation comparison.
 - Added an explicit `fine-finalist` paired-evaluator selector for fixed 64/2/24/80 validation without changing the public or selected default pipeline.
 - Accepted the fixed 64/2/24/80 finalist on the 100-pair DIV2K validation set after it improved both local metrics over 64/2/32/64 on every image, without using the 800-image train split or changing the public pipeline in the evidence milestone.
+- Promoted the accepted 64/2/24/80 parameters to the public selected pipeline, froze the prior 64/2/32/64 fine-sweep and rejected-experiment anchor under a dedicated constant, and retained `fine-finalist` as an alias for report-command reproducibility.
+- Recorded a five-process local 1920x1080 promoted-parameter smoke benchmark with a 5.160 FPS median, a 5.011-5.205 FPS range, and identical checksums.
 
 ### Fixed
 

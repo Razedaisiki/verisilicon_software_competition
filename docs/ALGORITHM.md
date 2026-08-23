@@ -32,29 +32,33 @@ each other and the explicit selected-parameter path byte for byte.
 
 `SelectedQualityPipeline` enhances only the bicubic luma. Integer Sobel
 orientation uses edge threshold 64 and axis ratio 2. Samples are refined along
-the detected edge with Q8 gain 32, then receive a four-neighbor luma detail
-term with Q8 gain 64. Every result is clamped to the original bicubic luma's
-radius-one 3x3 envelope; chroma remains bicubic. All five Eval30 training folds
-independently selected this ungated tuple for both local metrics.
+the detected edge with Q8 gain 24, then receive a four-neighbor luma detail
+term with Q8 gain 80. Every result is clamped to the original bicubic luma's
+radius-one 3x3 envelope; chroma remains bicubic. All five Eval30 fine-search
+training folds selected this tuple for both local metrics, and it improved both
+metrics on every image in the separate 100-pair validation comparison.
 
 The original `QualityPipeline` remains frozen and separately available to the
 library and evaluator. `SelectedQualityPipeline` is tested against an explicit
 call with `SELECTED_UNGATED_PARAMETERS` for exact equality.
+`FineFinalistQualityPipeline` aliases that selected implementation for recorded
+command compatibility. The prior `64/2/32/64` selection remains named by
+`HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS` for historical reproduction.
 
-`ConfidenceGatedQualityPipeline` starts from that selected ungated result and
-blends its luma residual with an integer Q8 confidence. Confidence requires
+`ConfidenceGatedQualityPipeline` starts from the historical `64/2/32/64`
+result and blends its luma residual with an integer Q8 confidence. Confidence requires
 three neighboring normal contrasts to have the same sign, penalizes tangent
 intensity disagreement and contrast-profile changes, and ramps from zero at
 evidence 8 to full residual at evidence 48. Flat or sign-incoherent regions
 fall back to the bicubic luma. The existing local-envelope clamp remains.
-Eval30 measured this gate below the selected ungated result, so it remains an
-explicit failed experiment rather than a default path.
+Eval30 measured this gate below its matching historical ungated control, so it
+remains an explicit failed experiment rather than a default path.
 
-`BilinearChromaQualityPipeline` keeps the selected luma path byte-for-byte but
+`BilinearChromaQualityPipeline` keeps the historical `64/2/32/64` luma path but
 uses the project bilinear 2x scaler for Cb and Cr. Direct-composition tests lock
 this separation and retain exact serial/parallel results. Eval30 measured the
-candidate below selected ungated by `0.001765 dB` Y-PSNR and `0.000028696`
-Y-SSIM, while local 1080p measurements found no repeatable throughput gain.
+candidate below its historical ungated control by `0.001765 dB` Y-PSNR and
+`0.000028696` Y-SSIM, while local 1080p measurements found no repeatable throughput gain.
 It remains an explicit failed experiment; public processing keeps bicubic
 chroma.
 

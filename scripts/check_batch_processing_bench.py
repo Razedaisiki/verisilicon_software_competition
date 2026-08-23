@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 
-EXPECTED_CHECKSUM = "a0582bd112492615"
+EXPECTED_CHECKSUM = "916b749714c13698"
 CASES = ((1, "serial"), (2, "serial"), (2, "parallel"), (4, "serial"))
 
 

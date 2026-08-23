@@ -164,9 +164,10 @@ pipelines. The default baseline selector is `bicubic`. The optional
 `recommended` selector chooses the isolated `RecommendedBaselineV1` experiment.
 The default candidate selector is the frozen `quality` pipeline. Explicit
 `selected-ungated`, `confidence-gated`, `bilinear-chroma`, and `fine-finalist`
-selectors choose the coarse-sweep winner, its isolated gating experiment, the
-isolated bilinear-chroma experiment, or the evaluation-only `64/2/24/80`
-fine-sweep finalist.
+selectors choose the accepted `64/2/24/80` public selection, the historical
+`64/2/32/64` gating or bilinear-chroma experiments, or the accepted selection
+under its recorded fine-finalist label. `selected-ungated` and `fine-finalist`
+produce the same output after promotion.
 On Windows, the complete locked Eval30 workflow is:
 
 ```text
@@ -201,10 +202,10 @@ are not included in the Windows submission candidate.
 The dependency-free `quality_sweep` example defaults to the fixed,
 deterministic nine-configuration coarse grid for the existing luma quality
 arithmetic. An explicit fine mode is available only for conservative Eval30
-screening around the selected `64/2/32/64` configuration. It contains exactly
-32 candidates rather than a Cartesian grid:
+screening around the historical selected `64/2/32/64` configuration. It
+contains exactly 32 candidates rather than a Cartesian grid:
 
-- the selected center;
+- the historical selected center;
 - 14 one-axis neighbors: edge threshold `48/56/72/80`, axis ratio `1/3`,
   directional gain `16/24/40/48`, or sharpen gain `48/56/72/80`, with other
   values held at the selected center;
@@ -214,9 +215,10 @@ screening around the selected `64/2/32/64` configuration. It contains exactly
   sharpen `48/56/72/80`;
 - the frozen default `48/2/64/48` as a legacy comparison candidate.
 
-The selected and frozen default parameters are always included. Fine-mode
-delta columns use the selected `64/2/32/64` configuration as their explicit
-comparison anchor; coarse mode retains its historical frozen-default anchor.
+The historical anchor, current selection, and frozen default parameters are
+always included. Fine-mode delta columns retain the selected-at-the-time
+`64/2/32/64` configuration as their explicit comparison anchor; coarse mode
+retains its historical frozen-default anchor.
 The tool
 derives the content category by removing one final underscore-or-hyphen numeric
 suffix from each pair ID, then assigns sorted members of every category
@@ -251,19 +253,19 @@ cargo run --offline --locked --release --example quality_sweep -- path/to/eval30
 
 The recorded Eval30 fine sweep selected `64/2/24/80` for both metrics in every
 training fold. Its out-of-fold deltas against `64/2/32/64` were `+0.053531 dB`
-and `+0.000547420` Y-SSIM. This is a screening result only; the configuration
-must remain an explicit finalist until it passes one separate 100-pair DIV2K
+and `+0.000547420` Y-SSIM. It then passed one separate 100-pair DIV2K
 validation comparison.
 
 The `fine-finalist` selector provides exactly that one-candidate comparison. It
-routes to fixed `64/2/24/80` parameters and remains evaluation-only; it does not
-modify `SELECTED_UNGATED_PARAMETERS`, the public `sr.exe` path, or any default
-evaluator selector.
+is retained as a report-reproduction label and aliases the promoted
+`SelectedQualityPipeline`; both route to fixed `64/2/24/80` parameters. The
+default evaluator selector remains the frozen `quality` pipeline.
 
 That comparison improved over `64/2/32/64` by `+0.051761 dB` and
 `+0.000836439` Y-SSIM across the 100-pair DIV2K validation set. Both metrics
 improved on every image. The set is consumed for this acceptance decision and
-must not be reused for another parameter search.
+must not be reused for another parameter search. The accepted parameters are
+now promoted through `SELECTED_UNGATED_PARAMETERS` and public `sr.exe`.
 
 ## Remaining official unknowns
 

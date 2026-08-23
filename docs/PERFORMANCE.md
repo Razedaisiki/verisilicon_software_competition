@@ -153,9 +153,9 @@ a material repeatable improvement over Auto threaded scalar processing.
 
 ## CI benchmark correctness
 
-`scripts/check_processing_bench.py` runs the release benchmark for all five
-available modes with forced serial and parallel policies on an 8x5 image. It checks
-the requested and selected policies, dimensions, fixed checksums, and exact
+`scripts/check_processing_bench.py` runs the release benchmark for all six
+available modes with forced serial and parallel policies on an 8x5 image. It
+checks the requested and selected policies, dimensions, fixed checksums, and exact
 serial/parallel checksum equality. CI does not inspect elapsed time or enforce a
 wall-clock threshold.
 
@@ -180,6 +180,8 @@ measurements are diagnostic and are not an official timing result.
 
 On the same host, three interleaved release runs processed three measured
 1920x1080 frames per process after one warm-up. Auto selected parallel.
+These recorded rows use the historical `64/2/32/64` ungated control; the gate
+and its control remain frozen after the public promotion.
 
 | Candidate | Median FPS | FPS range | Change from selected ungated |
 | --- | ---: | ---: | ---: |
@@ -195,6 +197,8 @@ Eval30 quality, so neither quality nor throughput supports selecting it.
 
 On the same host, five interleaved release processes per candidate processed
 three measured 1920x1080 frames after one warm-up. Auto selected parallel.
+These recorded rows use the historical `64/2/32/64` luma control, which remains
+frozen after the public promotion.
 
 | Candidate | Median FPS | Change from selected ungated |
 | --- | ---: | ---: |
@@ -208,6 +212,21 @@ than the measured median difference, so this experiment provides no repeatable
 throughput improvement. Its Eval30 quality was also slightly lower in both
 metrics, and it was rejected without consuming the held-out DIV2K validation
 set.
+
+## Promoted-parameter smoke benchmark
+
+After promoting `64/2/24/80`, five independent release processes each used one
+warm-up and four measured 1920x1080-to-3840x2160 frames with Auto policy. Auto
+selected parallel execution on the local Ryzen 5 5500U host.
+
+| Pipeline | Median FPS | FPS range |
+| --- | ---: | ---: |
+| Promoted selected ungated | 5.160 | 5.011-5.205 |
+
+All five runs produced checksum `98e3c40731c269e9`. The promoted gains change
+integer constants but not the scaler, edge classification parameters, branch
+structure, or amount of per-pixel work. This is a local processing-only smoke
+benchmark, not an official platform result.
 
 ## Luma neighborhood reuse
 

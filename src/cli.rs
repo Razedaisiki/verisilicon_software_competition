@@ -766,7 +766,7 @@ mod tests {
         let encoded = fs::read(&output).unwrap();
         assert_eq!(encoded.len(), OFFICIAL_RAW_OUTPUT_BYTE_COUNT);
         assert!(!encoded.starts_with(b"P6\n"));
-        assert_eq!(fnv1a64(&encoded), 12_454_278_094_118_301_282);
+        assert_eq!(fnv1a64(&encoded), 2_849_276_674_554_390_517);
         fs::remove_file(input).unwrap();
         fs::remove_file(output).unwrap();
     }

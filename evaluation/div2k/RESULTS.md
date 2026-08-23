@@ -54,8 +54,10 @@ or additional parameter candidates were evaluated.
 The baseline rows in the previous and finalist reports match for all 100
 images. The finalist improves both metrics over the previous selection on all
 100 images; there are no per-image ties or regressions in either metric. This
-accepts the finalist for a separate promotion milestone. The validation set is
-now consumed for this selection and must not be reused to tune another search.
+accepted the finalist for a separate promotion milestone. That promotion is
+now complete: public `SelectedQualityPipeline` uses `64/2/24/80`, while
+`fine-finalist` remains an alias for the recorded command. The validation set
+is consumed for this selection and must not be reused to tune another search.
 
 ```text
 cargo run --offline --locked --release --example paired_eval -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-fine-finalist-report.csv bicubic fine-finalist

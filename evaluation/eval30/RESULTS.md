@@ -97,8 +97,9 @@ parameters belongs to a separately reviewed algorithm milestone.
 
 ## Fine parameter sweep
 
-The bounded 32-candidate fine sweep used the selected `64/2/32/64`
-configuration as its comparison anchor. All five training folds independently
+The bounded 32-candidate fine sweep used the then-selected `64/2/32/64`
+configuration as its comparison anchor. That historical anchor remains frozen
+after the later public promotion. All five training folds independently
 ranked the same `64/2/24/80` parameters first for both PSNR and SSIM. Their
 out-of-fold result was `33.116893 dB` and `0.931033529` Y-SSIM, or
 `+0.053531 dB` and `+0.000547420` versus the selected anchor.
@@ -107,16 +108,17 @@ Every held-out fold improved both metrics. The validation-category deltas were
 positive for nature (`+0.048021 dB`, `+0.001087086`), render
 (`+0.042385 dB`, `+0.000179347`), and text/UI (`+0.070186 dB`,
 `+0.000375827`). This makes `64/2/24/80` the sole finalist for one validation
-run on the separate 100-pair DIV2K validation set; it does not yet change the
-public pipeline.
+run on the separate 100-pair DIV2K validation set. This recorded sweep did not
+itself change the public pipeline; the later accepted validation did.
 
 The generated CSV remains ignored under `target/`. Its SHA-256 is
 `14b337d71af4a30b7aa5eb5347cd7fdc2fee389f1ea5032a89d66d8db413cc7c`.
 
 ## Confidence-gated residual experiment
 
-The fixed-point gate was compared against both bicubic and the selected
-ungated control with explicit evaluator selectors.
+The fixed-point gate was compared against both bicubic and the then-selected
+`64/2/32/64` ungated control with explicit evaluator selectors. Both paths are
+frozen for report reproduction.
 
 | Pipeline | Mean Y-PSNR (dB) | Mean Y-SSIM |
 | --- | ---: | ---: |
@@ -139,8 +141,9 @@ The confidence-gated report SHA-256 is
 
 ## Bilinear chroma experiment
 
-The isolated candidate kept selected bicubic-plus-enhanced luma and changed
-only Cb/Cr scaling to the project bilinear 2x implementation.
+The isolated candidate kept the then-selected `64/2/32/64`
+bicubic-plus-enhanced luma and changed only Cb/Cr scaling to the project
+bilinear 2x implementation. Both paths are frozen for report reproduction.
 
 | Pipeline | Mean Y-PSNR (dB) | Mean Y-SSIM |
 | --- | ---: | ---: |

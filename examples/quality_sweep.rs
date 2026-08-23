@@ -14,7 +14,8 @@ use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 use verisilicon_sr::algorithm::ExecutionPolicy;
 use verisilicon_sr::algorithm::quality::{
-    DEFAULT_QUALITY_PARAMETERS, QualityParameters, QualityPipeline, SELECTED_UNGATED_PARAMETERS,
+    DEFAULT_QUALITY_PARAMETERS, HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS, QualityParameters,
+    QualityPipeline,
 };
 use verisilicon_sr::image::Image;
 use verisilicon_sr::io::ppm::PpmP6Codec;
@@ -179,7 +180,7 @@ fn run_with_space(
 
     let (header, comparison_parameters) = match search_space {
         SearchSpace::Coarse => (COARSE_HEADER, DEFAULT_QUALITY_PARAMETERS),
-        SearchSpace::Fine => (FINE_HEADER, SELECTED_UNGATED_PARAMETERS),
+        SearchSpace::Fine => (FINE_HEADER, HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS),
     };
     let mut output_text = String::from(header);
     let comparison_index = parameters
@@ -381,7 +382,7 @@ fn fine_parameters() -> Vec<QualityParameters> {
     values.push(DEFAULT_QUALITY_PARAMETERS);
     values.sort();
     values.dedup();
-    debug_assert!(values.contains(&SELECTED_UNGATED_PARAMETERS));
+    debug_assert!(values.contains(&HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS));
     values
 }
 
@@ -782,13 +783,18 @@ mod tests {
     }
 
     #[test]
-    fn fine_space_is_bounded_stable_and_centered_on_selected() {
+    fn fine_space_is_bounded_stable_and_centered_on_historical_anchor() {
         let values = fine_parameters();
-        let selected = verisilicon_sr::algorithm::quality::SELECTED_UNGATED_PARAMETERS;
+        let selected = verisilicon_sr::algorithm::quality::HISTORICAL_FINE_SWEEP_ANCHOR_PARAMETERS;
         let frozen_default = verisilicon_sr::algorithm::quality::DEFAULT_QUALITY_PARAMETERS;
         assert_eq!(values.len(), 32);
         assert!(values.contains(&selected));
         assert!(values.contains(&frozen_default));
+        assert!(values.contains(&verisilicon_sr::algorithm::quality::SELECTED_UNGATED_PARAMETERS));
+        assert_ne!(
+            selected,
+            verisilicon_sr::algorithm::quality::SELECTED_UNGATED_PARAMETERS
+        );
         assert!(values.windows(2).all(|window| window[0] < window[1]));
 
         let difference_count =
