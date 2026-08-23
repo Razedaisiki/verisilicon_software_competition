@@ -21,7 +21,7 @@ compliance claim.
 | PDF-008 CPU-only; threading and SIMD allowed | Implemented | `src/algorithm.rs` uses bounded standard-library CPU threads; processing modules contain CPU integer code; `docs/PERFORMANCE.md` documents dispatch. No GPU API or dependency exists. | Official CPU, core/thread policy, compiler flags, and target architecture. |
 | PDF-009 no mature image-processing libraries | Implemented | `[dependencies]` is empty; `cargo tree --locked --edges normal` contains only `verisilicon_sr`; codecs, color conversion, scaling, and metrics are repository code under `src/`. | Committee interpretation of prohibited tooling, including build-time tools if separately constrained. |
 | PDF-010 no neural networks/models/runtime model files | Implemented | No model loader or inference path exists; the fixed package source allowlist contains only ASCII Rust/TOML text; `.gitignore` excludes Cmodel and generated assets. | Official audit procedure and any additional forbidden filename rules. |
-| PDF-011 quality, subjective, speed, AI Coding scoring | Blocked | `src/metrics.rs`, `tests/quality_regression.rs`, `examples/visual_qa.rs`, and `examples/processing_bench.rs` provide provisional local diagnostics. | Official dataset, metrics, weights, subjective procedure, result schema, and AI Coding log format. |
+| PDF-011 quality, subjective, speed, AI Coding scoring | Blocked | `docs/EVALUATION.md` records the confirmed equal-image mean Y-PSNR and mean Y-SSIM categories and their 50/50 weights, and defines a separate local paired HR/LR contract. Existing code provides only legacy diagnostics. | Evaluation implementation, official dataset, exact metric numerics, cross-metric normalization, thresholds, subjective procedure, result schema, and AI Coding log format. |
 | PDF-012 at least 1 FPS and quality at least bicubic | Blocked | Local processing-only 1920x1080 evidence in `docs/PERFORMANCE.md` has medians above 1 FPS; the project-local Catmull-Rom anchor is fully specified in `docs/ALGORITHM.md`; quality regression tests avoid organizer-equivalence or superiority claims. | Official platform, timing API/boundary, evaluation dataset, organizer comparison outputs, and quality threshold calculation. |
 | PDF-013 required submission structure and records | Provisional | `scripts/submission_package.py` creates, verifies, and safely extracts a deterministic uncompressed TAR with source, the Windows one-click `build.ps1`, the precompiled evaluation executable `bin/sr.exe`, algorithm and AI Coding documents, external logs, and README. Windows CI checks repeated byte-identical TAR creation and offline binary rebuild identity. | Archive filename and any additional result/log schema details, plus the real exported logs at final packaging time. |
 | Rust language acceptability | Blocked | `Cargo.toml` pins `rust-version = "1.85"`; Windows CI validates Rust 1.85 and the `x86_64-pc-windows-msvc` target; all runtime code is standard-library Rust. | Explicit committee confirmation that Rust binaries and the required toolchain are accepted in the submission environment. |
@@ -51,7 +51,7 @@ compliance claim.
 | A-005 Catmull-Rom a=-0.5 bicubic | Project-local | Exact Q7 phase weights, half-pixel mapping, borders, Q14 rounding, oracle, and tests are in `src/algorithm/bicubic.rs`; `docs/ALGORITHM.md` records coefficient origin and denies organizer equivalence. | No coefficient file is expected; compare against organizer evaluation evidence when available. |
 | A-006 processing-only timing | Provisional | `examples/processing_bench.rs` places `Instant` only around algorithm calls after warm-up; `docs/PERFORMANCE.md` records raw runs and limitations. | Official timing API, process/I/O boundary, warm-up, repetitions, CPU controls, and compiler settings. |
 | A-007 deterministic non-recursive non-overwriting batch | Provisional | Batch coordinator and ordered mixed-format `.ppm`, `.raw`, and `.rgb` discovery tests are in `src/cli.rs`; README and `docs/ASSUMPTIONS.md` state all current rules. | Official batch discovery, recursion, overwrite, ordering, failure, and reporting behavior. |
-| A-008 provisional luma PSNR/global SSIM | Provisional | Formulas and fixed tests are in `src/metrics.rs`; regression use is in `tests/quality_regression.rs`; visual reporting is in `examples/visual_qa.rs`. | Official metrics, windows, color transform, dataset, thresholds, and result format. |
+| A-008 legacy luma PSNR/global SSIM diagnostics | Provisional | Formulas and fixed tests are in `src/metrics.rs`; `docs/EVALUATION.md` explicitly keeps global SSIM separate from the unimplemented local-window paired HR/LR contract. | Official Y transform, metric numerics, SSIM windows and borders, cross-metric normalization, dataset, thresholds, and result format. |
 
 ## Repository-wide controls
 
@@ -69,7 +69,8 @@ compliance claim.
 
 Final compliance remains blocked on the versioned official dataset and
 comparison evidence, a versioned written record of the organizer-confirmed raw
-contract, timing API and platform, metric definitions and thresholds, archive
+contract, timing API and platform, exact metric numerics, cross-metric
+normalization and thresholds, archive
 filename, result record schema, AI Coding log format, and confirmation that Rust 1.85 is
 accepted. No additional bicubic coefficient file is expected. The removed
 hardware-track Cmodel is not treated as a software-track dependency.

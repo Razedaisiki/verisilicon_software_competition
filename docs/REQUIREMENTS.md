@@ -20,6 +20,16 @@ This document separates official software contest requirements from project deci
 | PDF-012 | Admission requires at least 1 frame per second and quality at least equal to the prescribed bicubic baseline. | Confirmed | Software contest PDF | Run the official benchmark and quality comparison when supplied. |
 | PDF-013 | The Windows submission is an uncompressed TAR containing `submit_pkg/src/`, precompiled evaluation executable `bin/sr.exe`, one-click `build.ps1`, `doc/ALGORITHM.md`, `doc/AI_CODING.md`, `logs/`, and `README.md`. | Confirmed | Software contest PDF page 10 and Windows platform interpretation | Validate archive type, exact directory roles, rebuildability, records, and AI Coding logs. |
 
+## Organizer-confirmed evaluation facts
+
+| ID | Requirement | Status | Source | Verification |
+| --- | --- | --- | --- | --- |
+| ORG-001 | Objective quality consists of mean per-image Y-PSNR and mean per-image Y-SSIM, weighted 50 percent each. | Confirmed | User-supplied organizer clarification | Report the two dataset means separately until cross-metric normalization is specified. |
+| ORG-002 | Every test image has equal weight in both objective dataset averages. | Confirmed | User-supplied organizer clarification | Average unrounded per-image values; do not pool pixels or SSIM windows across images. |
+
+The exact local paired HR/LR development contract and its boundary from the
+organizer implementation are recorded in `docs/EVALUATION.md`.
+
 ## Project decisions
 
 These choices are repository policy, not claims about the contest PDF.
@@ -47,7 +57,7 @@ These interfaces are planning defaults, not official facts. Their definitions an
 | A-005 | The local bicubic development anchor uses Catmull-Rom parameter `a = -0.5` without claiming organizer equivalence. | Project-local | Project planning and organizer clarification that no coefficient file will follow |
 | A-006 | Initial performance measurement uses a processing-only timing boundary. | Provisional | Project planning |
 | A-007 | Batch mode is non-recursive, deterministically ordered, and refuses existing outputs. | Provisional | Project planning |
-| A-008 | Luma PSNR and global luma SSIM are provisional diagnostic metrics only. | Provisional | Project planning |
+| A-008 | The existing luma PSNR and global luma SSIM remain legacy synthetic diagnostics; the paired HR/LR local-window contract is documented separately. | Provisional | Project planning and `docs/EVALUATION.md` |
 
 ## Missing official package details
 
@@ -56,7 +66,7 @@ The following details must be replaced with versioned committee data before fina
 - Versioned written confirmation of the raw working contract, including file
   naming and any metadata requirements outside the packed payload.
 - Official timing API, measurement boundary, warm-up procedure, host platform, CPU configuration, thread policy, and compiler settings.
-- Official image dataset, objective metric formulas, score weights, thresholds, and subjective review procedure.
+- Official image dataset, exact Y/PSNR/SSIM numerical rules, cross-metric normalization, thresholds, and subjective review procedure.
 - Archive filename, result record, and AI Coding log schema details.
 
 When the official package is available, add its version, filename, page or section locator, and exact acceptance evidence to the relevant row before freezing an interface.

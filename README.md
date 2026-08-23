@@ -108,6 +108,13 @@ The library exposes provisional luma PSNR and global luma SSIM diagnostics. They
 
 The global SSIM diagnostic uses population variance and covariance over the complete image with `L = 255`, `K1 = 0.01`, `K2 = 0.03`, `C1 = 6.5025`, and `C2 = 58.5225`. It is not a sliding-window or multiscale SSIM variant.
 
+The confirmed objective categories are mean per-image Y-PSNR and mean
+per-image Y-SSIM, weighted 50 percent each with equal weight for every test
+image. `docs/EVALUATION.md` defines a separate paired HR/LR local evaluation
+contract, including windowed MSSIM and a stable report schema. The current
+global SSIM remains a legacy synthetic diagnostic; no combined objective score
+is invented while the organizer's cross-metric normalization is unknown.
+
 Generate deterministic synthetic PPM artifacts and print baseline and quality diagnostic metrics with:
 
 ```text
@@ -159,5 +166,6 @@ build program, and `bin/sr.exe` is the precompiled executable used for standard
 evaluation-machine testing.
 See `docs/COMPLIANCE.md` for the
 evidence audit, `docs/SUBMISSION.md` for build/evaluation/package instructions
-and the official-package reconciliation checklist, `docs/REQUIREMENTS.md` for
+and the official-package reconciliation checklist, `docs/EVALUATION.md` for
+paired HR/LR metric and reporting rules, `docs/REQUIREMENTS.md` for
 traceability, and `docs/ASSUMPTIONS.md` for provisional choices.

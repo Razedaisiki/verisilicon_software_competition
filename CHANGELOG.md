@@ -64,6 +64,9 @@ All notable project changes are recorded in this file.
 - Added package algorithm and AI Coding documents plus mandatory external conversation-log input.
 - Documented `build.ps1` as the one-click build program and `bin/sr.exe` as the precompiled standard-test executable.
 - Reclassified Catmull-Rom bicubic as a project-local development anchor after confirmation that no coefficient file will follow.
+- Documented the confirmed equal-image mean Y-PSNR and mean Y-SSIM objective categories and their 50/50 weights.
+- Added an exact paired HR/LR local evaluation contract with deterministic luma, windowed MSSIM, dataset reduction, reporting, failure, and baseline-comparison rules.
+- Kept the existing whole-image global SSIM explicitly classified as a legacy synthetic diagnostic.
 
 ### Fixed
 
