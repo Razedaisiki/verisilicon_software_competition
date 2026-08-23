@@ -18,7 +18,7 @@ This document separates official software contest requirements from project deci
 | PDF-010 | Neural networks, pretrained models, and runtime model files are prohibited. | Confirmed | Software contest PDF | Audit source, package contents, and runtime file access. |
 | PDF-011 | Scoring includes objective quality, subjective quality, speed, and AI Coding evaluation. | Confirmed | Software contest PDF | Map evaluation evidence to all four scoring categories. |
 | PDF-012 | Admission requires at least 1 frame per second and quality at least equal to the prescribed bicubic baseline. | Confirmed | Software contest PDF | Run the official benchmark and quality comparison when supplied. |
-| PDF-013 | Submission must follow the required directory structure and include source, build and run documentation, result records, and AI Coding logs. | Confirmed | Software contest PDF | Validate the final package against the official template. |
+| PDF-013 | Submission is an uncompressed TAR containing `submit_pkg/src/`, `bin/sr`, `build.sh`, `doc/ALGORITHM.md`, `doc/AI_CODING.md`, `logs/`, and `README.md`. | Confirmed | Software contest PDF page 10 | Validate archive type, exact directory intent, rebuildability, records, and AI Coding logs. |
 
 ## Project decisions
 
@@ -32,6 +32,7 @@ These choices are repository policy, not claims about the contest PDF.
 | PRJ-004 | Record each implementation milestone in `CHANGELOG.md`. | Adopted | Project milestone brief | Require an Unreleased entry during review. |
 | PRJ-005 | Use small atomic commits and GitHub Actions checks. | Adopted | Project milestone brief | Review commit scope and require format, lint, test, and build jobs. |
 | PRJ-006 | Preserve a deterministic scalar implementation as the correctness oracle for optimized CPU paths. | Adopted | Engineering decision | Compare optimized output byte-for-byte with scalar output. |
+| PRJ-007 | Maintain build, CI, and package execution for Windows only. | Adopted | User platform decision | Run the pinned MSVC target in Windows CI and record the PDF naming deviation. |
 
 ## Provisional assumptions
 
@@ -43,7 +44,7 @@ These interfaces are planning defaults, not official facts. Their definitions an
 | A-002 | Official raw is fixed 1920x1080 packed row-major RGB888 in R/G/B order with top-to-bottom rows and no header or padding; output is fixed 3840x2160 in the same layout. | Confirmed working contract | Direct organizer clarification; written package record pending |
 | A-003 | The project pipeline uses BT.601 full-range fixed-point color conversion. | Provisional | Project planning |
 | A-004 | The public processing scale is fixed at 2x. | Provisional | Software scope |
-| A-005 | The local bicubic admission baseline uses cubic parameter `a = -0.5`. | Provisional | Project planning |
+| A-005 | The local bicubic development anchor uses Catmull-Rom parameter `a = -0.5` without claiming organizer equivalence. | Project-local | Project planning and organizer clarification that no coefficient file will follow |
 | A-006 | Initial performance measurement uses a processing-only timing boundary. | Provisional | Project planning |
 | A-007 | Batch mode is non-recursive, deterministically ordered, and refuses existing outputs. | Provisional | Project planning |
 | A-008 | Luma PSNR and global luma SSIM are provisional diagnostic metrics only. | Provisional | Project planning |
@@ -52,11 +53,12 @@ These interfaces are planning defaults, not official facts. Their definitions an
 
 The following details must be replaced with versioned committee data before final acceptance:
 
-- Exact bicubic baseline coefficients, sampling coordinates, border rules, rounding, and reference output data.
 - Versioned written confirmation of the raw working contract, including file
   naming and any metadata requirements outside the packed payload.
 - Official timing API, measurement boundary, warm-up procedure, host platform, CPU configuration, thread policy, and compiler settings.
 - Official image dataset, objective metric formulas, score weights, thresholds, and subjective review procedure.
-- Exact submission directory template, filename rules, build entry point, result record schema, and AI Coding log format.
+- Organizer acceptance of Windows-only `bin/sr.exe` and `build.ps1` in place of
+  the PDF page 10 `bin/sr` and `build.sh`, plus archive filename, result record,
+  and AI Coding log schema details.
 
 When the official package is available, add its version, filename, page or section locator, and exact acceptance evidence to the relevant row before freezing an interface.

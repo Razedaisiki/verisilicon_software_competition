@@ -1,59 +1,47 @@
-# Provisional Build and Submission Guide
+# Windows Build and Submission Candidate Guide
 
-This guide describes the current source review package. It is not the official
-contest submission procedure. Reconcile every checklist item below when the
-committee package arrives.
+This repository maintains Windows only. The local candidate uses an
+uncompressed TAR and preserves the contest directory intent, but it is not yet
+an official submission: PDF page 10 names `bin/sr` and `build.sh`, while the
+Windows candidate contains `bin/sr.exe` and `build.ps1`. Organizer acceptance
+of those two Windows names is required before submission.
 
 ## Prerequisites
 
-- Rust 1.85.0 with Cargo installed locally.
-- Python 3 for repository validation and provisional packaging.
-- No network access is needed after the Rust toolchain is installed because the
-  Rust dependency graph is empty.
+- 64-bit Windows.
+- Rust 1.85.0 with the `x86_64-pc-windows-msvc` target.
+- Python 3 for validation and deterministic TAR creation.
+- PowerShell.
 
-## One-click release build
+The Rust dependency graph is empty. Build and package rebuild operations use
+Cargo offline and locked modes.
 
-Linux or another Unix-like shell:
-
-```text
-sh build.sh
-./bin/sr --help
-```
-
-Windows PowerShell:
+## Repository build
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 .\bin\sr.exe --help
 ```
 
-Both scripts run `cargo build --locked --release` and copy the resulting binary
-under ignored `bin/`.
+The script runs Cargo offline, locked, and in release mode for
+`x86_64-pc-windows-msvc`. It disables incremental compilation, enables the MSVC
+linker's reproducible mode, remaps the source root, and copies the executable
+to `bin/sr.exe`.
 
 ## Run
 
-Linux:
-
-```text
-./bin/sr input.ppm output.ppm
-./bin/sr --raw-rgb8 1920 1080 input.raw output.raw
-./bin/sr --batch input_directory output_directory
-```
-
-Windows PowerShell:
-
 ```text
 .\bin\sr.exe input.ppm output.ppm
+.\bin\sr.exe input.raw output.raw
 .\bin\sr.exe --raw-rgb8 1920 1080 input.raw output.raw
 .\bin\sr.exe --batch input_directory output_directory
 ```
 
-The raw layout and batch behavior remain provisional assumptions A-002 and
-A-007. The two-argument PPM command uses `BicubicBaseline`.
+The two-argument raw path uses fixed 1920x1080 packed RGB888 input and produces
+fixed 3840x2160 packed RGB888 output. See `docs/ASSUMPTIONS.md` for the exact
+working contract and the remaining written-confirmation dependency.
 
-## Test and audit
-
-Run on either platform from the repository root:
+## Validate the repository
 
 ```text
 cargo fmt --all -- --check
@@ -61,73 +49,60 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-targets --all-features
 cargo build --locked --release
 python scripts/check_ascii.py
+python scripts/check_div2k_converter.py
 python scripts/check_processing_bench.py
 cargo tree --locked --edges normal
 ```
 
 The expected dependency tree contains only `verisilicon_sr`.
 
-## Provisional evaluation
+## Create the Windows TAR candidate
 
-Generate synthetic visual artifacts in a new ignored directory:
-
-```text
-cargo run --locked --release --example visual_qa -- target/visual_qa
-```
-
-Run processing-only diagnostics with an explicit pipeline and policy:
+First export the complete AI conversation logs to a dedicated directory. The
+creator rejects missing, symlinked, or empty log directories and never invents
+logs.
 
 ```text
-cargo run --locked --release --example processing_bench -- baseline auto 1920 1080 3
-cargo run --locked --release --example processing_bench -- quality auto 1920 1080 3
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+python scripts/submission_package.py create target/submission-candidate.tar --binary bin/sr.exe --logs path/to/exported-ai-logs --target x86_64-pc-windows-msvc
+python scripts/submission_package.py verify target/submission-candidate.tar
+python scripts/submission_package.py extract target/submission-candidate.tar target/submission-review
+powershell -ExecutionPolicy Bypass -File .\target\submission-review\submit_pkg\build.ps1
 ```
 
-These metrics and timings are local diagnostics. They are not official scores
-or admission evidence.
+Creation refuses to overwrite an existing archive. The TAR is uncompressed and
+uses sorted paths, fixed metadata, safe regular-file entries, English ASCII
+source and documents, executable metadata for the Windows binary and build
+entry point, and a fixed source allowlist. Verification rejects links, special
+entries, unsafe paths, Windows case collisions, unexpected members, non-PE
+executables, empty logs, and template changes.
 
-## Create and verify the provisional review package
+The extracted `build.ps1` invokes Cargo with `--offline --locked --release` for
+the declared target. It rebuilds from `submit_pkg/src/` and compares every byte
+of the rebuilt executable with `submit_pkg/bin/sr.exe`.
 
-Choose explicit unused output paths under ignored `target/`:
+The candidate contains:
 
 ```text
-python scripts/review_package.py create target/review-package.zip
-python scripts/review_package.py verify target/review-package.zip
+submit_pkg/
+|-- src/
+|-- bin/sr.exe
+|-- build.ps1
+|-- doc/ALGORITHM.md
+|-- doc/AI_CODING.md
+|-- logs/
+`-- README.md
 ```
 
-Creation refuses to overwrite an existing ZIP. The source allowlist is fixed in
-`scripts/review_package.py`. Archive paths are sorted ASCII relative paths with
-fixed timestamps and permissions and no compression. `MANIFEST.sha256` records
-the SHA-256 digest of every source payload. Verification checks exact
-membership, hashes, safe paths, ordering, duplicate paths, fixed metadata, and
-forbidden names and extensions.
+## Final reconciliation checklist
 
-The package excludes PDFs, Cmodel data, models, binaries, raw images, generated
-results, `target/`, `bin/`, `.git/`, local configuration, and secrets. Do not
-rename this ZIP to an official submission or add results until the committee
-template and record formats are known.
-
-## Official-package reconciliation checklist
-
-- Record the committee package version, filenames, and section/page locators.
-- Confirm Rust 1.85 and the intended target triples are accepted.
-- Replace A-001 and A-002 with official PPM and raw layout rules and fixtures.
-- Replace A-003 with the official color conversion if one is prescribed.
-- Confirm the public scale and accepted dimensions currently covered by A-004.
-- Replace A-005 with exact bicubic coefficients, coordinates, borders, rounding,
-  and reference hashes.
-- Replace A-006 with the official timing API, boundary, warm-up, repetition,
-  compiler, CPU, and thread settings.
-- Replace A-007 with official batch discovery, overwrite, failure, and reporting
-  rules.
-- Add the official metrics and dataset as a distinct path; do not relabel A-008
-  diagnostics as official.
-- Run official baseline equality, quality admission, speed, and subjective
-  procedures on the declared platform.
-- Keep the removed hardware-track Cmodel excluded. Reassess only if the official
-  software package explicitly identifies a distinct software-track asset.
-- Replace the provisional ZIP allowlist and archive name with the official
-  directory template and filename rules.
-- Add required result records, notices, AI Coding logs, and validation output in
-  their exact official schemas.
-- Re-run the complete compliance matrix and remove every `Blocked` status only
-  when versioned official evidence exists.
+- Obtain written acceptance of Rust 1.85 and `x86_64-pc-windows-msvc`.
+- Obtain written acceptance of `bin/sr.exe` and `build.ps1` in place of the PDF
+  page 10 Unix-style names.
+- Record the required archive filename, result record schema, and AI Coding log
+  export format.
+- Confirm the exact PPM interpretation and versioned raw RGB888 contract.
+- Integrate the official timing API and platform settings when supplied.
+- Run official quality, speed, and subjective procedures on the declared host.
+- Supply real exported AI conversation logs; never submit the synthetic CI log.
+- Keep the hardware-track Cmodel and all local DIV2K assets out of the package.

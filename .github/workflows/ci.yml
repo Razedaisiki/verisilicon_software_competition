@@ -9,14 +9,8 @@ permissions:
 
 jobs:
   validate:
-    name: Validate on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
+    name: Validate Windows
+    runs-on: windows-latest
 
     steps:
       - name: Check out repository
@@ -49,16 +43,37 @@ jobs:
       - name: Verify processing benchmark policies
         run: python scripts/check_processing_bench.py
 
-      - name: Create provisional review package
-        run: python scripts/review_package.py create target/review-package.zip
+      - name: Verify zero dependency graph
+        run: cargo tree --locked --edges normal
 
-      - name: Verify provisional review package
-        run: python scripts/review_package.py verify target/review-package.zip
-
-      - name: Verify one-click build
-        if: runner.os == 'Linux'
-        run: sh build.sh
-
-      - name: Verify PowerShell one-click build
-        if: runner.os == 'Windows'
+      - name: Verify reproducible PowerShell one-click build
         run: .\build.ps1
+
+      - name: Create synthetic package-test log
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path target/ci-synthetic-ai-logs | Out-Null
+          Set-Content -Encoding ascii -Path target/ci-synthetic-ai-logs/NOT-A-REAL-SUBMISSION.txt -Value "Synthetic CI-only log for structural package testing."
+
+      - name: Create and verify Windows submission candidate
+        run: >-
+          python scripts/submission_package.py create target/ci-submission-candidate.tar
+          --binary bin/sr.exe
+          --logs target/ci-synthetic-ai-logs --target x86_64-pc-windows-msvc
+
+      - name: Verify deterministic Windows TAR creation
+        shell: pwsh
+        run: |
+          python scripts/submission_package.py create target/ci-submission-candidate-copy.tar --binary bin/sr.exe --logs target/ci-synthetic-ai-logs --target x86_64-pc-windows-msvc
+          $first = (Get-FileHash -Algorithm SHA256 -LiteralPath target/ci-submission-candidate.tar).Hash
+          $second = (Get-FileHash -Algorithm SHA256 -LiteralPath target/ci-submission-candidate-copy.tar).Hash
+          if ($first -ne $second) { throw "Repeated package creation was not byte-identical." }
+
+      - name: Verify and extract Windows submission candidate
+        run: |
+          python scripts/submission_package.py verify target/ci-submission-candidate.tar
+          python scripts/submission_package.py extract target/ci-submission-candidate.tar target/ci-extracted
+
+      - name: Verify packaged offline rebuild identity
+        shell: pwsh
+        run: '& target/ci-extracted/submit_pkg/build.ps1'

@@ -35,11 +35,12 @@ These assumptions enable implementation planning before all committee package de
 - Reason: the confirmed software scope maps primary 1920 by 1080 RGB8 input to 3840 by 2160 RGB8 output.
 - Replacement boundary: keep scale explicit in internal pipeline configuration, but do not publish other scale factors unless the committee requirements permit them.
 
-## A-005: Bicubic uses a equals -0.5
+## A-005: Local bicubic anchor uses a equals -0.5
 
-- Provisional rule: the initial admission baseline uses separable bicubic interpolation with cubic parameter `a = -0.5`.
-- Reason: it provides a deterministic, dependency-free baseline while exact committee coefficients and data are missing.
-- Replacement boundary: isolate the baseline kernel, coordinate mapping, border policy, and rounding. Replace them together when the official baseline definition arrives.
+- Project-local rule: development comparisons use separable Catmull-Rom bicubic interpolation with cubic parameter `a = -0.5`.
+- Reason: it provides a deterministic dependency-free anchor. The organizer clarified that no additional coefficient file will be supplied.
+- Non-equivalence rule: this anchor is not claimed to reproduce the organizer's hidden bicubic LR generation byte for byte.
+- Replacement boundary: keep the kernel, coordinate mapping, border policy, and rounding isolated. Change them only for a measured algorithm decision or versioned organizer reference evidence.
 
 ## A-006: Timing measures processing only
 

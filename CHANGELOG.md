@@ -59,6 +59,11 @@ All notable project changes are recorded in this file.
 - Extended the two-argument command with extension-first PPM/raw selection and safe unknown-extension detection.
 - Extended deterministic batch discovery to `.ppm`, `.raw`, and `.rgb` while preserving each input format.
 - Added full-size official raw routing, byte-count, content-hash, and mixed-format discovery tests.
+- Switched the maintained build and CI scope to Windows only.
+- Replaced the provisional review ZIP with a deterministic uncompressed Windows TAR candidate workflow.
+- Added package algorithm and AI Coding documents plus mandatory external conversation-log input.
+- Recorded the Windows `sr.exe` and `build.ps1` deviation from the PDF page 10 Unix-style names.
+- Reclassified Catmull-Rom bicubic as a project-local development anchor after confirmation that no coefficient file will follow.
 
 ### Fixed
 

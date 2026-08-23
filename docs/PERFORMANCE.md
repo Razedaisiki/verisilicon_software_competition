@@ -141,8 +141,8 @@ compiler configuration.
 No hand-written `std::arch` SIMD path is added. The official CPU and toolchain
 are unknown, while a correct implementation would need architecture guards,
 runtime feature detection, scalar fallback, unsafe intrinsic code, exact
-fixed-point equivalence across borders and tails, and Windows and Linux build
-coverage. The existing safe threaded scalar path already exceeds the provisional
+fixed-point equivalence across borders and tails, and Windows build coverage.
+The existing safe threaded scalar path already exceeds the provisional
 target locally, so those risks are not justified by current evidence.
 
 Reconsider intrinsics if the official CPU/toolchain is specified or if the

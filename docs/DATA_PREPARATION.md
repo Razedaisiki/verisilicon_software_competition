@@ -69,8 +69,8 @@ The check generates its own synthetic PNG bytes and requires no downloaded
 dataset. It covers all five PNG filters, exact PPM and raw bytes, deterministic
 directory layout, CRC corruption, unsupported formats, unknown critical chunks,
 reserved-bit violations, oversized source and decoded dimensions, truncation,
-trailing data, no candidates, and overwrite refusal. Linux and Windows CI run
-this check.
+trailing data, no candidates, and overwrite refusal. Windows CI runs this
+check.
 
 ## Caveats
 

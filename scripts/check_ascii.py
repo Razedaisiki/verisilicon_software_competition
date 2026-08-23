@@ -40,6 +40,8 @@ def main() -> int:
     checked = 0
 
     for path in repository_files():
+        if not path.is_file():
+            continue
         if not is_repository_text(path):
             continue
         checked += 1

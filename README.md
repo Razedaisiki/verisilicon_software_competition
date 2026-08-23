@@ -12,7 +12,7 @@ The candidate changes only bicubic luma. It uses integer Sobel edge orientation,
 
 ## Bicubic baseline
 
-The baseline converts RGB8 to full-range YCbCr8 using documented Q8 integer coefficients, scales all three planes, and converts the result back to RGB8. The scaler uses half-pixel mapping and the provisional Catmull-Rom parameter `a = -0.5`.
+The baseline converts RGB8 to full-range YCbCr8 using documented Q8 integer coefficients, scales all three planes, and converts the result back to RGB8. The scaler uses half-pixel mapping and the project-selected Catmull-Rom parameter `a = -0.5`. It is a local development anchor, not a claim of byte equivalence with the organizer's bicubic downsampling.
 
 The two exact Q7 polyphase weight sets are `[-3, 29, 111, -9]` and `[-9, 111, 29, -3]`. Horizontal results remain signed until the vertical pass. Borders are clamped, combined Q14 results are rounded to nearest with halves away from zero, and only final samples are clipped to the 8-bit range.
 
@@ -30,13 +30,7 @@ The minimum supported Rust version is 1.85.
 cargo build --locked --release
 ```
 
-On a Unix-like host, the offline one-click build entry point copies the release binary to `bin/sr`:
-
-```text
-sh build.sh
-```
-
-On Windows PowerShell, the equivalent entry point copies the release binary to
+The maintained Windows PowerShell entry point copies the release binary to
 `bin/sr.exe`:
 
 ```text
@@ -151,14 +145,18 @@ python scripts/check_div2k_converter.py
 
 Official contest documents, assets, images, archives, and generated outputs are local inputs and are not tracked in this repository.
 
-Create and verify a deterministic, source-only provisional review package with:
+Create and verify a deterministic uncompressed Windows TAR candidate only after
+building the declared target and exporting the real AI conversation logs:
 
 ```text
-python scripts/review_package.py create target/review-package.zip
-python scripts/review_package.py verify target/review-package.zip
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+python scripts/submission_package.py create target/submission-candidate.tar --binary bin/sr.exe --logs path/to/exported-ai-logs --target x86_64-pc-windows-msvc
+python scripts/submission_package.py verify target/submission-candidate.tar
 ```
 
-This ZIP is not an official submission. See `docs/COMPLIANCE.md` for the
+The candidate uses `bin/sr.exe` and `build.ps1`. PDF page 10 shows `bin/sr` and
+`build.sh`, so organizer confirmation of the Windows names remains mandatory.
+See `docs/COMPLIANCE.md` for the
 evidence audit, `docs/SUBMISSION.md` for build/evaluation/package instructions
 and the official-package reconciliation checklist, `docs/REQUIREMENTS.md` for
 traceability, and `docs/ASSUMPTIONS.md` for provisional choices.
