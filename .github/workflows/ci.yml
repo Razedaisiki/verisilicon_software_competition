@@ -62,6 +62,9 @@ jobs:
       - name: Verify processing benchmark policies
         run: python scripts/check_processing_bench.py
 
+      - name: Verify batch processing benchmark concurrency
+        run: python scripts/check_batch_processing_bench.py
+
       - name: Verify zero dependency graph
         run: cargo tree --locked --edges normal
 

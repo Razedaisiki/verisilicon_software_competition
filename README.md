@@ -113,6 +113,19 @@ cargo run --locked --release --example processing_bench -- selected-ungated auto
 cargo run --locked --release --example processing_bench -- confidence-gated auto 640 360 5
 ```
 
+Measure processing-only batch throughput with an explicit frame-worker count
+and per-frame policy:
+
+```text
+cargo run --locked --release --example batch_processing_bench -- serial 6 1920 1080 12 2
+cargo run --locked --release --example batch_processing_bench -- parallel 1 1920 1080 12 2
+```
+
+The example creates its deterministic inputs and persistent worker set before
+timing, warms one complete batch, excludes output hashing, and reports batch
+FPS plus an order-stable checksum. It is a diagnostic tool; CI verifies
+concurrency correctness without enforcing a timing threshold.
+
 The benchmark uses a deterministic in-memory gradient, one unmeasured warm-up,
 and excludes fixture generation and I/O from timing. See
 `docs/PERFORMANCE.md` for memory calculations, local before/after measurements,
@@ -238,6 +251,7 @@ python scripts/check_ascii.py
 python scripts/check_div2k_converter.py
 python scripts/eval_dataset.py validate evaluation/eval30/sources --locked
 python scripts/check_eval_dataset.py
+python scripts/check_batch_processing_bench.py
 ```
 
 Official contest documents, assets, images, archives, and generated outputs are local inputs and are not tracked in this repository.

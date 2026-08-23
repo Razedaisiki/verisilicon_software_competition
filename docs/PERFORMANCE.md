@@ -190,3 +190,39 @@ The smooth-gradient fixture produced the same checksum
 `98e3c40731c269e9` for both modes because their luma enhancement does not alter
 that fixture. The gate adds neighborhood evidence work and did not improve
 Eval30 quality, so neither quality nor throughput supports selecting it.
+
+## Processing-only batch concurrency matrix
+
+The dependency-free `batch_processing_bench` example keeps a fixed set of
+frame workers alive across one unmeasured warm-up batch and all measured
+batches. Input generation, worker creation, output hashing, and file I/O are
+outside the measured interval. Every configuration below produced the same
+ordered checksum `eed5c05c098fd7bb`.
+
+The local Ryzen 5 5500U host has 6 physical cores and 12 logical processors.
+Rust 1.85 release runs used 12 deterministic 1920x1080 inputs per batch, two
+measured batches, and three independent processes per configuration. Values
+are median processing-only batch FPS.
+
+| Frame workers | Inner policy | Median FPS |
+| ---: | --- | ---: |
+| 1 | Serial | 3.250 |
+| 2 | Serial | 6.331 |
+| 3 | Serial | 8.866 |
+| 4 | Serial | 10.634 |
+| 6 | Serial | 11.710 |
+| 8 | Serial | 12.602 |
+| 10 | Serial | 11.864 |
+| 12 | Serial | 13.328 |
+| 1 | Parallel | 4.836 |
+| 2 | Parallel | 7.627 |
+| 3 | Parallel | 10.750 |
+| 4 | Parallel | 12.737 |
+
+The current sequential-frame CLI behavior corresponds most closely to one
+frame worker with inner parallelism. On this host, using one serial pipeline
+per available logical processor reached 2.76 times that median throughput.
+This is local scheduling evidence, not an official 8-core result. The standard
+public-repository `windows-latest` runner has four vCPUs, so CI checks exact
+outputs and concurrency mechanics but does not claim an 8-core score or impose
+a timing gate.

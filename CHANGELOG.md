@@ -79,6 +79,7 @@ All notable project changes are recorded in this file.
 - Added a deterministic nine-configuration quality-parameter sweep with category-stratified cross-validation, separate PSNR/SSIM training selection, Pareto evidence, held-out category diagnostics, and a Windows one-command runner.
 - Added isolated selected-ungated and confidence-gated evaluator candidates, fixed-point coherent-edge residual gating, exact regression coverage, and reproducible quality and throughput evidence retaining the ungated selection.
 - Promoted the validated ungated 64/2/32/64 quality configuration to the public Windows `sr.exe` processing path while retaining bicubic, frozen-quality, recommended, and confidence-gated comparison modes.
+- Added a deterministic processing-only batch concurrency benchmark with persistent frame workers, ordered output checksums, local 6-core scaling evidence, and timing-free Windows CI coverage.
 
 ### Fixed
 
