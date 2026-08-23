@@ -247,6 +247,12 @@ cargo run --offline --locked --release --example quality_sweep -- path/to/pairs.
 cargo run --offline --locked --release --example quality_sweep -- path/to/eval30-pairs.tsv path/to/fine-results.csv 5 fine
 ```
 
+The recorded Eval30 fine sweep selected `64/2/24/80` for both metrics in every
+training fold. Its out-of-fold deltas against `64/2/32/64` were `+0.053531 dB`
+and `+0.000547420` Y-SSIM. This is a screening result only; the configuration
+must remain an explicit finalist until it passes one separate 100-pair DIV2K
+validation comparison.
+
 ## Remaining official unknowns
 
 - Exact organizer Y transform and rounding.
