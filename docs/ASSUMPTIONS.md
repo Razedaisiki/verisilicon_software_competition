@@ -59,6 +59,16 @@ These assumptions enable implementation planning before all committee package de
   after per-file failures, diagnostics retain candidate order, and the command
   fails if any candidate fails. Success requires at least one completed image
   and no failures. An input directory with no candidates is an error.
+- Scheduling rule: a one-candidate batch preserves the single-image automatic
+  channel policy. For two or more candidates, if every frame can receive all
+  three channel workers without exceeding available logical processors, one
+  persistent frame worker is used per candidate with inner channel
+  parallelism. Otherwise batch mode uses
+  `min(available processors, candidate count, 8)` persistent frame workers and
+  forces each frame pipeline serial. The cap of eight keeps the expected
+  official-geometry processing and encode working set near or below 512 MiB.
+  Completion may be out of order, but result reduction and diagnostics always
+  use the original deterministic candidate order.
 - Reason: these rules provide deterministic and recoverable behavior while official batch details are missing.
 - Replacement boundary: isolate discovery, ordering, overwrite, continuation, and status policies in the batch coordinator. Replace them together if the committee package defines different behavior.
 

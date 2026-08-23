@@ -1,6 +1,8 @@
 //! Testable command-line routing and selected quality processing.
 
-use crate::algorithm::{SelectedQualityPipeline, SuperResolution};
+use crate::algorithm::{
+    ExecutionPolicy, MAX_CHANNEL_WORKERS, SelectedQualityPipeline, SuperResolution,
+};
 use crate::image::Image;
 use crate::io::ppm::PpmP6Codec;
 use crate::io::raw::RawRgb8Codec;
@@ -13,11 +15,20 @@ use std::fmt;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, mpsc};
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 pub const EXIT_SUCCESS: u8 = 0;
 pub const EXIT_USAGE: u8 = 2;
 pub const EXIT_PROCESSING: u8 = 4;
+
+/// Caps official-geometry frame concurrency to a conservative working set.
+///
+/// A selected-pipeline frame plus encode buffers can retain roughly 60 MiB at
+/// 1920x1080 input and 3840x2160 output. Eight workers therefore keep the
+/// expected batch working set within approximately 512 MiB.
+const MAX_BATCH_FRAME_WORKERS: usize = 8;
 
 pub const USAGE: &str = "Usage:\n  sr <input> <output>\n  sr --raw-rgb8 <width> <height> <input.raw> <output.raw>\n  sr --batch <in_dir> <out_dir>\n  sr --help";
 
@@ -141,6 +152,14 @@ fn parse_dimension(value: &OsStr, name: &str) -> Result<u32, String> {
 }
 
 fn process_ppm(input: &Path, output: &Path) -> Result<Duration, CliError> {
+    process_ppm_with_policy(input, output, ExecutionPolicy::Auto)
+}
+
+fn process_ppm_with_policy(
+    input: &Path,
+    output: &Path,
+    policy: ExecutionPolicy,
+) -> Result<Duration, CliError> {
     let codec = PpmP6Codec::new();
     let image = codec.decode(
         input,
@@ -149,7 +168,7 @@ fn process_ppm(input: &Path, output: &Path) -> Result<Duration, CliError> {
             dimensions: None,
         },
     )?;
-    let timed = process_selected_quality(&image)?;
+    let timed = process_selected_quality_with_policy(&image, policy)?;
     codec.encode(output, ImageFormat::PpmP6, &timed.image)?;
     Ok(timed.processing_time)
 }
@@ -198,6 +217,15 @@ fn process_raw_rgb8(
     input: &Path,
     output: &Path,
 ) -> Result<Duration, CliError> {
+    process_raw_rgb8_with_policy(dimensions, input, output, ExecutionPolicy::Auto)
+}
+
+fn process_raw_rgb8_with_policy(
+    dimensions: Dimensions,
+    input: &Path,
+    output: &Path,
+    policy: ExecutionPolicy,
+) -> Result<Duration, CliError> {
     let codec = RawRgb8Codec::new();
     let image = codec.decode(
         input,
@@ -206,15 +234,21 @@ fn process_raw_rgb8(
             dimensions: Some(dimensions),
         },
     )?;
-    let timed = process_selected_quality(&image)?;
+    let timed = process_selected_quality_with_policy(&image, policy)?;
     codec.encode(output, ImageFormat::RawRgb8, &timed.image)?;
     Ok(timed.processing_time)
 }
 
-fn process_selected_quality(image: &Image) -> Result<TimedImage, CliError> {
+fn process_selected_quality_with_policy(
+    image: &Image,
+    policy: ExecutionPolicy,
+) -> Result<TimedImage, CliError> {
     let config = ProcessingConfig::new(image.dimensions());
     let start = Instant::now();
-    let output = SelectedQualityPipeline::new().process(image, config)?;
+    let output = match policy {
+        ExecutionPolicy::Auto => SelectedQualityPipeline::new().process(image, config)?,
+        forced => SelectedQualityPipeline::new().process_with_policy(image, config, forced)?,
+    };
     let processing_time = start.elapsed();
     Ok(TimedImage {
         image: output,
@@ -234,51 +268,250 @@ fn process_batch(input_dir: &Path, output_dir: &Path) -> Result<BatchReport, Cli
             output_dir.display()
         ))
     })?;
-    let mut report = BatchReport::default();
-    for (input, format) in candidates {
+
+    let available_processors = thread::available_parallelism().map_or(1, usize::from);
+    let mut outcomes = Vec::new();
+    outcomes
+        .try_reserve_exact(candidates.len())
+        .map_err(|_| CliError::BatchTaskAllocationFailed)?;
+    outcomes.resize_with(candidates.len(), || None);
+    let mut tasks = Vec::new();
+    tasks
+        .try_reserve_exact(candidates.len())
+        .map_err(|_| CliError::BatchTaskAllocationFailed)?;
+
+    for (index, (input, format)) in candidates.iter().enumerate() {
         let file_name = input
             .file_name()
             .ok_or_else(|| CliError::File("batch candidate has no filename".to_owned()))?;
         let output = output_dir.join(file_name);
         match output.try_exists() {
             Ok(true) => {
-                report.failures.push(format!(
+                outcomes[index] = Some(BatchOutcome::Failure(format!(
                     "{}: refusing to overwrite existing output {}",
                     input.display(),
                     output.display()
-                ));
+                )));
                 continue;
             }
             Ok(false) => {}
             Err(error) => {
-                report.failures.push(format!(
+                outcomes[index] = Some(BatchOutcome::Failure(format!(
                     "{}: failed to inspect output {}: {error}",
                     input.display(),
                     output.display()
-                ));
+                )));
                 continue;
             }
         }
-        let result = match format {
-            ImageFormat::PpmP6 => process_ppm(&input, &output),
-            ImageFormat::RawRgb8 => {
-                process_raw_rgb8(official_raw_input_dimensions(), &input, &output)
-            }
-        };
-        match result {
-            Ok(processing_time) => {
+
+        tasks.push(BatchTask {
+            candidate_index: index,
+            input: input.clone(),
+            output,
+            format: *format,
+        });
+    }
+
+    if !tasks.is_empty() {
+        let plan = batch_execution_plan_for_tasks(available_processors, &tasks);
+        for result in execute_batch_tasks(tasks, plan)? {
+            let candidate_index = result.candidate_index;
+            outcomes[candidate_index] = Some(match result.result {
+                Ok(processing_time) => BatchOutcome::Success(processing_time),
+                Err(error) => BatchOutcome::Failure(format!(
+                    "{}: {error}",
+                    candidates[candidate_index].0.display()
+                )),
+            });
+        }
+    }
+
+    let mut report = BatchReport::default();
+    for outcome in outcomes {
+        match outcome.ok_or(CliError::MissingBatchResult)? {
+            BatchOutcome::Success(processing_time) => {
                 report.succeeded += 1;
                 report.processing_time = report
                     .processing_time
                     .checked_add(processing_time)
                     .ok_or(CliError::TimingOverflow)?;
             }
-            Err(error) => report
-                .failures
-                .push(format!("{}: {error}", input.display())),
+            BatchOutcome::Failure(error) => report.failures.push(error),
         }
     }
     Ok(report)
+}
+
+fn batch_execution_plan_for_tasks(
+    available_processors: usize,
+    tasks: &[BatchTask],
+) -> BatchExecutionPlan {
+    batch_execution_plan(available_processors, tasks.len())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct BatchExecutionPlan {
+    frame_workers: usize,
+    inner_policy: ExecutionPolicy,
+}
+
+fn batch_execution_plan(available_processors: usize, candidate_count: usize) -> BatchExecutionPlan {
+    let available_processors = available_processors.max(1);
+    if candidate_count == 1 {
+        return BatchExecutionPlan {
+            frame_workers: 1,
+            inner_policy: ExecutionPolicy::Auto,
+        };
+    }
+    let all_frames_fit_channel_workers = candidate_count > 0
+        && candidate_count
+            .checked_mul(MAX_CHANNEL_WORKERS)
+            .is_some_and(|workers| workers <= available_processors);
+
+    if all_frames_fit_channel_workers {
+        BatchExecutionPlan {
+            frame_workers: candidate_count,
+            inner_policy: ExecutionPolicy::Parallel,
+        }
+    } else {
+        BatchExecutionPlan {
+            frame_workers: candidate_count
+                .min(available_processors)
+                .min(MAX_BATCH_FRAME_WORKERS),
+            inner_policy: ExecutionPolicy::Serial,
+        }
+    }
+}
+
+struct BatchTask {
+    candidate_index: usize,
+    input: PathBuf,
+    output: PathBuf,
+    format: ImageFormat,
+}
+
+struct BatchTaskResult {
+    candidate_index: usize,
+    result: Result<Duration, CliError>,
+}
+
+enum BatchOutcome {
+    Success(Duration),
+    Failure(String),
+}
+
+fn execute_batch_tasks(
+    tasks: Vec<BatchTask>,
+    plan: BatchExecutionPlan,
+) -> Result<Vec<BatchTaskResult>, CliError> {
+    debug_assert!(!tasks.is_empty());
+    debug_assert!(plan.frame_workers > 0);
+
+    let task_count = tasks.len();
+    let worker_count = plan.frame_workers.min(task_count);
+    let mut results = Vec::new();
+    results
+        .try_reserve_exact(task_count)
+        .map_err(|_| CliError::BatchTaskAllocationFailed)?;
+    let (task_sender, task_receiver) = mpsc::channel::<BatchTask>();
+    let (result_sender, result_receiver) = mpsc::channel::<BatchTaskResult>();
+    let task_receiver = Arc::new(Mutex::new(task_receiver));
+    let mut workers = Vec::new();
+    workers
+        .try_reserve_exact(worker_count)
+        .map_err(|_| CliError::BatchTaskAllocationFailed)?;
+
+    for worker_index in 0..worker_count {
+        let task_receiver = Arc::clone(&task_receiver);
+        let worker_result_sender = result_sender.clone();
+        let spawn = thread::Builder::new()
+            .name(format!("sr-batch-frame-{worker_index}"))
+            .spawn(move || {
+                batch_worker_loop(&task_receiver, &worker_result_sender, plan.inner_policy);
+            });
+        match spawn {
+            Ok(worker) => workers.push(worker),
+            Err(_) => {
+                drop(task_sender);
+                drop(result_sender);
+                let _ = join_batch_workers(workers);
+                return Err(CliError::BatchWorkerSpawnFailed);
+            }
+        }
+    }
+    drop(result_sender);
+
+    let mut send_failed = false;
+    for task in tasks {
+        if task_sender.send(task).is_err() {
+            send_failed = true;
+            break;
+        }
+    }
+    drop(task_sender);
+
+    while results.len() < task_count {
+        match result_receiver.recv() {
+            Ok(result) => results.push(result),
+            Err(_) => break,
+        }
+    }
+
+    join_batch_workers(workers)?;
+    if send_failed || results.len() != task_count {
+        return Err(CliError::BatchWorkerDisconnected);
+    }
+    Ok(results)
+}
+
+fn batch_worker_loop(
+    task_receiver: &Mutex<mpsc::Receiver<BatchTask>>,
+    result_sender: &mpsc::Sender<BatchTaskResult>,
+    inner_policy: ExecutionPolicy,
+) {
+    loop {
+        let task = match task_receiver.lock() {
+            Ok(receiver) => receiver.recv(),
+            Err(_) => return,
+        };
+        let Ok(task) = task else {
+            return;
+        };
+
+        let result = match task.format {
+            ImageFormat::PpmP6 => process_ppm_with_policy(&task.input, &task.output, inner_policy),
+            ImageFormat::RawRgb8 => process_raw_rgb8_with_policy(
+                official_raw_input_dimensions(),
+                &task.input,
+                &task.output,
+                inner_policy,
+            ),
+        };
+        if result_sender
+            .send(BatchTaskResult {
+                candidate_index: task.candidate_index,
+                result,
+            })
+            .is_err()
+        {
+            return;
+        }
+    }
+}
+
+fn join_batch_workers(workers: Vec<JoinHandle<()>>) -> Result<(), CliError> {
+    let mut panicked = false;
+    for worker in workers {
+        if worker.join().is_err() {
+            panicked = true;
+        }
+    }
+    if panicked {
+        Err(CliError::BatchWorkerPanicked)
+    } else {
+        Ok(())
+    }
 }
 
 fn discover_batch_candidates(input_dir: &Path) -> Result<Vec<(PathBuf, ImageFormat)>, CliError> {
@@ -332,6 +565,11 @@ enum CliError {
     NoCandidates(PathBuf),
     AmbiguousFormat,
     UndetectedFormat { actual: usize },
+    BatchTaskAllocationFailed,
+    BatchWorkerSpawnFailed,
+    BatchWorkerPanicked,
+    BatchWorkerDisconnected,
+    MissingBatchResult,
     TimingOverflow,
 }
 
@@ -351,6 +589,15 @@ impl fmt::Display for CliError {
                 formatter,
                 "unable to detect input format: input is neither valid PPM P6 nor {OFFICIAL_RAW_INPUT_BYTE_COUNT}-byte official raw RGB888 (received {actual} bytes)"
             ),
+            Self::BatchTaskAllocationFailed => {
+                formatter.write_str("failed to allocate batch scheduling state")
+            }
+            Self::BatchWorkerSpawnFailed => formatter.write_str("failed to spawn batch worker"),
+            Self::BatchWorkerPanicked => formatter.write_str("batch worker panicked"),
+            Self::BatchWorkerDisconnected => {
+                formatter.write_str("batch worker disconnected before completing every candidate")
+            }
+            Self::MissingBatchResult => formatter.write_str("missing ordered batch result"),
             Self::TimingOverflow => formatter.write_str("aggregate processing time overflow"),
         }
     }
@@ -371,16 +618,21 @@ impl From<crate::algorithm::AlgorithmError> for CliError {
 #[cfg(test)]
 mod tests {
     use super::{
-        EXIT_PROCESSING, EXIT_SUCCESS, EXIT_USAGE, detect_format_bytes, discover_batch_candidates,
-        format_from_extension, run,
+        BatchExecutionPlan, BatchTask, CliError, EXIT_PROCESSING, EXIT_SUCCESS, EXIT_USAGE,
+        MAX_BATCH_FRAME_WORKERS, batch_execution_plan, batch_execution_plan_for_tasks,
+        detect_format_bytes, discover_batch_candidates, format_from_extension, join_batch_workers,
+        run,
     };
+    use crate::algorithm::ExecutionPolicy;
     use crate::io::ImageFormat;
     use crate::io::ppm::PpmP6Codec;
     use crate::spec::{OFFICIAL_RAW_INPUT_BYTE_COUNT, OFFICIAL_RAW_OUTPUT_BYTE_COUNT};
     use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use std::thread;
 
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -567,6 +819,97 @@ mod tests {
     }
 
     #[test]
+    fn batch_plan_preserves_one_candidate_auto_policy() {
+        for available in [1, 2, 4, 8, 12] {
+            assert_eq!(
+                batch_execution_plan(available, 1),
+                BatchExecutionPlan {
+                    frame_workers: 1,
+                    inner_policy: ExecutionPolicy::Auto,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn batch_plan_uses_runnable_tasks_after_preflight_skips() {
+        let discovered_candidate_count = 20;
+        let runnable_tasks = vec![BatchTask {
+            candidate_index: 19,
+            input: PathBuf::from("remaining.ppm"),
+            output: PathBuf::from("output/remaining.ppm"),
+            format: ImageFormat::PpmP6,
+        }];
+
+        assert_eq!(
+            batch_execution_plan_for_tasks(12, &runnable_tasks),
+            BatchExecutionPlan {
+                frame_workers: 1,
+                inner_policy: ExecutionPolicy::Auto,
+            }
+        );
+        assert_eq!(
+            batch_execution_plan(12, discovered_candidate_count),
+            BatchExecutionPlan {
+                frame_workers: MAX_BATCH_FRAME_WORKERS,
+                inner_policy: ExecutionPolicy::Serial,
+            }
+        );
+    }
+
+    #[test]
+    fn batch_plan_uses_small_parallel_and_large_serial_modes() {
+        let small_cases = [
+            (2, 2, 2, ExecutionPolicy::Serial),
+            (4, 2, 2, ExecutionPolicy::Serial),
+            (8, 2, 2, ExecutionPolicy::Parallel),
+            (8, 3, 3, ExecutionPolicy::Serial),
+            (12, 4, 4, ExecutionPolicy::Parallel),
+        ];
+        for (available, candidates, frame_workers, inner_policy) in small_cases {
+            assert_eq!(
+                batch_execution_plan(available, candidates),
+                BatchExecutionPlan {
+                    frame_workers,
+                    inner_policy,
+                }
+            );
+        }
+
+        for (available, expected_workers) in [(1, 1), (2, 2), (4, 4), (8, 8), (12, 8)] {
+            assert_eq!(
+                batch_execution_plan(available, 20),
+                BatchExecutionPlan {
+                    frame_workers: expected_workers,
+                    inner_policy: ExecutionPolicy::Serial,
+                }
+            );
+        }
+        assert_eq!(MAX_BATCH_FRAME_WORKERS, 8);
+    }
+
+    #[test]
+    fn batch_worker_join_reports_panic_after_joining_every_worker() {
+        let joined_effect = Arc::new(AtomicUsize::new(0));
+        let effect = Arc::clone(&joined_effect);
+        let workers = vec![
+            thread::spawn(|| panic!("synthetic batch worker panic")),
+            thread::spawn(move || {
+                effect.fetch_add(1, Ordering::Relaxed);
+            }),
+        ];
+        assert_eq!(
+            join_batch_workers(workers).unwrap_err().to_string(),
+            "batch worker panicked"
+        );
+        assert_eq!(joined_effect.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            CliError::BatchWorkerSpawnFailed.to_string(),
+            "failed to spawn batch worker"
+        );
+    }
+
+    #[test]
     fn batch_sorts_candidates_skips_unrelated_files_and_is_deterministic() {
         let input = temporary_directory("sorted_input");
         let output_one = input.with_extension("output_one");
@@ -600,6 +943,50 @@ mod tests {
         fs::remove_dir_all(input).unwrap();
         fs::remove_dir_all(output_one).unwrap();
         fs::remove_dir_all(output_two).unwrap();
+    }
+
+    #[test]
+    fn concurrent_mixed_batch_matches_single_file_outputs_exactly() {
+        let input = temporary_directory("mixed_exact_input");
+        let batch_output = input.with_extension("mixed_exact_batch");
+        let single_output = input.with_extension("mixed_exact_single");
+        fs::create_dir(&single_output).unwrap();
+        write_ppm(&input.join("a.ppm"), [10, 20, 30]);
+        write_ppm(&input.join("b.PPM"), [210, 120, 30]);
+        let mut raw = vec![0_u8; OFFICIAL_RAW_INPUT_BYTE_COUNT];
+        raw[..6].copy_from_slice(&[0, 32, 64, 128, 192, 255]);
+        fs::write(input.join("c.raw"), raw).unwrap();
+        write_ppm(&input.join("d.ppm"), [5, 100, 205]);
+        write_ppm(&input.join("e.ppm"), [250, 125, 0]);
+
+        let names = ["a.ppm", "b.PPM", "c.raw", "d.ppm", "e.ppm"];
+        for name in names {
+            let source = input.join(name);
+            let destination = single_output.join(name);
+            let (status, _, stderr) = invoke(&[
+                source.as_os_str().to_owned(),
+                destination.as_os_str().to_owned(),
+            ]);
+            assert_eq!(status, EXIT_SUCCESS, "{}", String::from_utf8_lossy(&stderr));
+        }
+
+        let (status, _, stderr) = invoke(&[
+            OsString::from("--batch"),
+            input.as_os_str().to_owned(),
+            batch_output.as_os_str().to_owned(),
+        ]);
+        assert_eq!(status, EXIT_SUCCESS, "{}", String::from_utf8_lossy(&stderr));
+        for name in names {
+            assert_eq!(
+                fs::read(batch_output.join(name)).unwrap(),
+                fs::read(single_output.join(name)).unwrap(),
+                "batch output differs for {name}"
+            );
+        }
+
+        fs::remove_dir_all(input).unwrap();
+        fs::remove_dir_all(batch_output).unwrap();
+        fs::remove_dir_all(single_output).unwrap();
     }
 
     #[test]
@@ -665,23 +1052,32 @@ mod tests {
     #[test]
     fn batch_continues_after_failures_and_reports_them_in_order() {
         let input = temporary_directory("partial_input");
-        let output = input.with_extension("partial_output");
+        let output_one = input.with_extension("partial_output_one");
+        let output_two = input.with_extension("partial_output_two");
         fs::write(input.join("a.ppm"), b"bad a").unwrap();
-        write_ppm(&input.join("b.ppm"), [90, 100, 110]);
-        fs::write(input.join("c.PPM"), b"bad c").unwrap();
-        let (status, _, stderr) = invoke(&[
-            OsString::from("--batch"),
-            input.as_os_str().to_owned(),
-            output.as_os_str().to_owned(),
-        ]);
-        assert_eq!(status, EXIT_PROCESSING);
-        assert!(output.join("b.ppm").is_file());
-        let diagnostics = String::from_utf8(stderr).unwrap();
+        fs::write(input.join("b.raw"), b"bad raw").unwrap();
+        write_ppm(&input.join("c.ppm"), [90, 100, 110]);
+        fs::write(input.join("d.PPM"), b"bad d").unwrap();
+        let mut diagnostics = Vec::new();
+        for output in [&output_one, &output_two] {
+            let (status, _, stderr) = invoke(&[
+                OsString::from("--batch"),
+                input.as_os_str().to_owned(),
+                output.as_os_str().to_owned(),
+            ]);
+            assert_eq!(status, EXIT_PROCESSING);
+            assert!(output.join("c.ppm").is_file());
+            diagnostics.push(String::from_utf8(stderr).unwrap());
+        }
+        assert_eq!(diagnostics[0], diagnostics[1]);
+        let diagnostics = &diagnostics[0];
         let first = diagnostics.find("a.ppm").unwrap();
-        let second = diagnostics.find("c.PPM").unwrap();
-        assert!(first < second);
+        let second = diagnostics.find("b.raw").unwrap();
+        let third = diagnostics.find("d.PPM").unwrap();
+        assert!(first < second && second < third);
         fs::remove_dir_all(input).unwrap();
-        fs::remove_dir_all(output).unwrap();
+        fs::remove_dir_all(output_one).unwrap();
+        fs::remove_dir_all(output_two).unwrap();
     }
 
     fn fnv1a64(data: &[u8]) -> u64 {

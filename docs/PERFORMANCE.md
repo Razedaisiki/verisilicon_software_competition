@@ -219,10 +219,21 @@ are median processing-only batch FPS.
 | 3 | Parallel | 10.750 |
 | 4 | Parallel | 12.737 |
 
-The current sequential-frame CLI behavior corresponds most closely to one
-frame worker with inner parallelism. On this host, using one serial pipeline
-per available logical processor reached 2.76 times that median throughput.
-This is local scheduling evidence, not an official 8-core result. The standard
-public-repository `windows-latest` runner has four vCPUs, so CI checks exact
-outputs and concurrency mechanics but does not claim an 8-core score or impose
-a timing gate.
+The former sequential-frame CLI behavior corresponds most closely to one
+frame worker with inner parallelism. The adopted large-batch plan caps the
+pool at eight serial frame workers: its `12.602 FPS` median is 2.61 times the
+`4.836 FPS` former-policy median. The uncapped 12-worker diagnostic reached
+2.76 times the former-policy median, but was not selected because its expected
+working set grows beyond the conservative eight-frame bound.
+
+An additional end-to-end diagnostic processed the 30 prepared Eval30 LR files
+through the adopted `sr --batch` path. It wrote 30 outputs totaling 732,672,510
+bytes in 3.010 seconds wall time, including PPM reads and writes. Thirty
+separate single-file process invocations took 11.610 seconds; all 30 paired
+output SHA-256 values matched exactly. This wall-clock comparison includes I/O
+and process-launch effects and is not the official processing-only FPS result.
+
+All batch measurements are local scheduling evidence, not an official 8-core
+result. The standard public-repository `windows-latest` runner has four vCPUs,
+so CI checks exact outputs and concurrency mechanics but does not claim an
+8-core score or impose a timing gate.

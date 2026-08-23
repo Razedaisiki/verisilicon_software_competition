@@ -41,6 +41,13 @@ The two-argument raw path uses fixed 1920x1080 packed RGB888 input and produces
 fixed 3840x2160 packed RGB888 output. See `docs/ASSUMPTIONS.md` for the exact
 working contract and the remaining written-confirmation dependency.
 
+Batch mode adapts its persistent frame-worker count to available logical
+processors and candidate count, with an eight-worker memory cap. Large batches
+use serial per-frame pipelines to avoid nested oversubscription. Small batches
+use inner channel parallelism only when all candidates fit within the reported
+logical parallelism. Output bytes, overwrite policy, and failure reporting
+remain deterministic.
+
 ## Validate the repository
 
 ```text
@@ -51,6 +58,7 @@ cargo build --locked --release
 python scripts/check_ascii.py
 python scripts/check_div2k_converter.py
 python scripts/check_processing_bench.py
+python scripts/check_batch_processing_bench.py
 cargo tree --locked --edges normal
 ```
 

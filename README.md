@@ -86,6 +86,15 @@ It refuses every existing output, continues after per-file failures, and
 returns status 4 if any file fails or no candidates exist. Discovery and
 failure semantics remain provisional assumption A-007; raw geometry is fixed.
 
+Batch scheduling adapts to the logical parallelism reported by the operating
+system. Scored-size batches use up to eight persistent frame workers with a
+serial pipeline per frame, bounding the expected official-geometry working set
+near 512 MiB and avoiding nested oversubscription. Small batches use channel
+parallelism only when it fits the reported capacity; one runnable image keeps
+the normal automatic policy. Completion may be out of order, while output
+bytes, failure reduction, and diagnostics remain in deterministic filename
+order.
+
 Invalid arguments return status 2, processing failures return status 4, and successful commands return status 0. Single-file commands retain standard output replacement behavior.
 
 Processing-only timing follows provisional assumption A-006. Timing starts immediately before the algorithm call and stops immediately after it, excluding decode and encode. Normal commands do not print timing values.
