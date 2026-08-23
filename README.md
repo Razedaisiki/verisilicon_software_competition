@@ -195,6 +195,51 @@ python scripts/check_div2k_converter.py
 See `docs/DATA_PREPARATION.md` for validation rules, atomic output behavior,
 usage, and unresolved official conversion caveats.
 
+## Offline DIV2K paired dataset
+
+The paired DIV2K workflow is separate from Eval30 and performs no downloads.
+The current optimization workflow uses exactly the 100 validation pairs
+`0801`-`0900`; the 800 train pairs are unused. Selected sources pass strict
+RGB8 PNG decoding and exact HR=2xLR dimension checks. Test IDs `0901`-`1000`
+remain input-only and are excluded from every paired manifest. The current
+archive roles are `DIV2K_valid_HR.zip` and
+`DIV2K_valid_LR_bicubic_X2.zip`. Optional train/all operation additionally
+uses `DIV2K_train_HR.zip` and `DIV2K_train_LR_bicubic_X2.zip`. Assets are local
+academic-research inputs and must not be redistributed.
+
+```text
+powershell -ExecutionPolicy Bypass -File .\prepare_div2k.ps1 -SourceDirectory path\to\DIV2K
+python scripts/div2k_pairs.py validate-sources path\to\DIV2K --split validation
+python scripts/div2k_pairs.py verify path\to\DIV2K evaluation/div2k/local/prepared --split validation
+python scripts/check_div2k_pairs.py
+```
+
+Generated PPM pairs, source hashes, output hashes, split membership, and
+manifest hashes are locked below the ignored `evaluation/div2k/local/` tree.
+The workflow refuses existing output and publishes only by a completed sibling
+directory rename. It never reads or modifies `evaluation/eval30`.
+
+The default prepared tree contains only this evaluator-compatible manifest:
+
+```text
+evaluation/div2k/local/prepared/validation/pairs.tsv
+```
+
+No root-level combined manifest is created. `-Split Train` and `-Split All`
+remain optional capabilities and produce only their selected split manifests.
+They are not used by the current 100-image optimization. Run the current sweep
+and comparison against the validation manifest:
+
+```text
+cargo run --locked --release --example quality_sweep -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-validation-sweep.csv 5
+cargo run --locked --release --example paired_eval -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-validation-report.csv bicubic selected-ungated
+```
+
+The first held-out 100-image validation run placed the selected candidate above
+the local bicubic anchor by `+0.168886 dB` Y-PSNR and `+0.003565996` Y-SSIM.
+See `evaluation/div2k/RESULTS.md`; this is local development evidence, not an
+official score.
+
 ## Local paired evaluation dataset
 
 The development-only Eval30 catalog locks 30 reusable internet sources: 10
@@ -268,6 +313,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-targets --all-features --locked
 python scripts/check_ascii.py
 python scripts/check_div2k_converter.py
+python scripts/check_div2k_pairs.py
 python scripts/eval_dataset.py validate evaluation/eval30/sources --locked
 python scripts/check_eval_dataset.py
 python scripts/check_batch_processing_bench.py

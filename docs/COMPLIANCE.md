@@ -25,7 +25,7 @@ compliance claim.
 | PDF-012 at least 1 FPS and quality at least bicubic | Blocked | Local processing-only 1920x1080 evidence in `docs/PERFORMANCE.md` has medians above 1 FPS; the project-local Catmull-Rom anchor is fully specified in `docs/ALGORITHM.md`; quality regression tests avoid organizer-equivalence or superiority claims. | Official platform, timing API/boundary, evaluation dataset, organizer comparison outputs, and quality threshold calculation. |
 | PDF-013 required submission structure and records | Provisional | `scripts/submission_package.py` creates, verifies, and safely extracts a deterministic uncompressed TAR with source, the Windows one-click `build.ps1`, the precompiled evaluation executable `bin/sr.exe`, algorithm and AI Coding documents, external logs, and README. Windows CI checks repeated byte-identical TAR creation and offline binary rebuild identity. | Archive filename and any additional result/log schema details, plus the real exported logs at final packaging time. |
 | Rust language acceptability | Blocked | `Cargo.toml` pins `rust-version = "1.85"`; Windows CI validates Rust 1.85 and the `x86_64-pc-windows-msvc` target; all runtime code is standard-library Rust. | Explicit committee confirmation that Rust binaries and the required toolchain are accepted in the submission environment. |
-| Baseline versus quality selection | Provisional | Public CLI paths select the ungated `SelectedQualityPipeline` with parameters 64/2/32/64. `BicubicBaseline`, frozen `QualityPipeline`, `RecommendedBaselineV1`, and the confidence-gated candidate remain explicit comparison paths. Eval30 selected the ungated candidate above the local bicubic anchor in both metrics, while the recommended and confidence-gated experiments were rejected. | Official baseline definition and evidence that the selected candidate meets the admission comparison. |
+| Baseline versus quality selection | Provisional | Public CLI paths select the ungated `SelectedQualityPipeline` with parameters 64/2/32/64. `BicubicBaseline`, frozen `QualityPipeline`, `RecommendedBaselineV1`, and the confidence-gated candidate remain explicit comparison paths. Eval30 selected the ungated candidate above the local bicubic anchor in both metrics; a subsequently opened 100-image DIV2K validation run retained positive deltas of +0.168886 dB Y-PSNR and +0.003565996 Y-SSIM. The recommended and confidence-gated experiments were rejected. | Official baseline definition and evidence that the selected candidate meets the admission comparison. |
 | Hardware-track Cmodel exclusion | Implemented | No Cmodel source, binary, archive, output, or integration exists; `.gitignore` and package verification forbid Cmodel artifacts. The previously received Cmodel matched the hardware track and was removed by project decision. | Reassess only if the official software package explicitly identifies a distinct software-track asset. |
 
 ## Project decision evidence matrix
@@ -39,6 +39,7 @@ compliance claim.
 | PRJ-005 small commits and GitHub Actions | Implemented | `.github/workflows/ci.yml` runs Windows format, lint, test, build, dependency, converter, benchmark, package, extraction, and rebuild checks; commit atomicity remains a review-time source-control check. | Primary reviewer must review and create commits; this audit does not commit or push. |
 | PRJ-006 deterministic scalar correctness oracle | Implemented | `scale_plane_2x_reference` and pipeline reference paths in `src/algorithm/bicubic.rs` and `src/algorithm/quality.rs` are test-only oracles; forced serial/parallel equality covers the frozen pipelines, and the selected wrapper is checked against its explicit parameters under both policies. | Compare against official reference outputs when supplied. |
 | PRJ-007 Windows-only maintenance | Implemented | CI has one `windows-latest` job; package `build.ps1` provides one-click reconstruction, and `bin/sr.exe` provides the precompiled standard-test executable. | Re-audit only if the evaluation platform changes. |
+| PRJ-008 offline locked DIV2K pairs | Implemented | `scripts/div2k_pairs.py`, `prepare_div2k.ps1`, and `scripts/check_div2k_pairs.py` default to the selected 100 validation pairs 0801-0900 and optionally enforce train 0001-0800 or both. They enforce exact selected membership, strict RGB8 PNG, HR=2xLR, deterministic split-only PPM and SHA-256 manifests, safe paths, atomic publication, and overwrite refusal. `evaluation/div2k/local/` is ignored; Eval30 and input-only test IDs 0901-1000 remain separate. | Locally verify the genuine validation archives used by the current optimization; do not treat this development corpus as the organizer's hidden evaluation set. |
 
 ## Assumption evidence matrix
 
@@ -60,6 +61,9 @@ compliance claim.
 - No tracked PDF, Cmodel artifact, model, generated result, binary, or archive
   is permitted in the package source tree.
 - Repository-authored text is checked by `scripts/check_ascii.py`.
+- Real DIV2K sources and generated pairs remain under the ignored
+  `evaluation/div2k/local/` workspace; only the offline preparation contract is
+  tracked.
 - CI runs Rust 1.85 formatting, lint, tests, release build, deterministic
   benchmark checksum checks, deterministic TAR creation, safe extraction, and
   packaged offline rebuild identity on Windows.

@@ -43,6 +43,7 @@ These choices are repository policy, not claims about the contest PDF.
 | PRJ-005 | Use small atomic commits and GitHub Actions checks. | Adopted | Project milestone brief | Review commit scope and require format, lint, test, and build jobs. |
 | PRJ-006 | Preserve a deterministic scalar implementation as the correctness oracle for optimized CPU paths. | Adopted | Engineering decision | Compare optimized output byte-for-byte with scalar output. |
 | PRJ-007 | Maintain build, CI, and package execution for Windows only. | Adopted | User platform decision | Run the pinned MSVC target in Windows CI; keep one-click `build.ps1` and precompiled `bin/sr.exe`. |
+| PRJ-008 | Keep paired DIV2K preparation offline, local-only, split-explicit, hash-locked, and separate from Eval30 and input-only test images; default to the current 100-image validation workflow. | Adopted | Dataset preparation milestone | Validate the selected exact ID set, RGB8 PNG, HR=2xLR, deterministic PPM and manifests, atomic publication, and synthetic validation/train/all failures. |
 
 ## Provisional assumptions
 

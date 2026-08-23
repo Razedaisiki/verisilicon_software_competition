@@ -5,6 +5,7 @@
 /DIV2K_test_LR/
 /DIV2K_test_LR.zip
 /evaluation/eval30/local/
+/evaluation/div2k/local/
 
 # Rust build output.
 /target/
