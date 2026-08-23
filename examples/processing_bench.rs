@@ -5,15 +5,16 @@ use std::error::Error;
 use std::hint::black_box;
 use std::process::ExitCode;
 use std::time::Instant;
+use verisilicon_sr::algorithm::quality::SELECTED_UNGATED_PARAMETERS;
 use verisilicon_sr::algorithm::{
-    BicubicBaseline, ExecutionPolicy, QualityPipeline, RecommendedBaselineV1,
-    selected_execution_policy,
+    BicubicBaseline, ConfidenceGatedQualityPipeline, ExecutionPolicy, QualityPipeline,
+    RecommendedBaselineV1, selected_execution_policy,
 };
 use verisilicon_sr::fixtures::smooth_gradient;
 use verisilicon_sr::image::Image;
 use verisilicon_sr::spec::{Dimensions, ProcessingConfig};
 
-const USAGE: &str = "Usage: processing_bench <baseline|recommended|quality> <auto|serial|parallel> <width> <height> <iterations>";
+const USAGE: &str = "Usage: processing_bench <baseline|recommended|quality|selected-ungated|confidence-gated> <auto|serial|parallel> <width> <height> <iterations>";
 
 fn main() -> ExitCode {
     match run() {
@@ -32,8 +33,14 @@ fn run() -> Result<(), Box<dyn Error>> {
         return Err("expected five arguments".into());
     }
     let mode = args[0].as_str();
-    if mode != "baseline" && mode != "recommended" && mode != "quality" {
-        return Err("mode must be baseline, recommended, or quality".into());
+    if !matches!(
+        mode,
+        "baseline" | "recommended" | "quality" | "selected-ungated" | "confidence-gated"
+    ) {
+        return Err(
+            "mode must be baseline, recommended, quality, selected-ungated, or confidence-gated"
+                .into(),
+        );
     }
     let policy = match args[1].as_str() {
         "auto" => ExecutionPolicy::Auto,
@@ -105,6 +112,15 @@ fn process(
         "baseline" => BicubicBaseline::new().process_with_policy(input, config, policy),
         "recommended" => RecommendedBaselineV1::new().process_with_policy(input, config, policy),
         "quality" => QualityPipeline::new().process_with_policy(input, config, policy),
+        "selected-ungated" => QualityPipeline::new().process_with_parameters(
+            input,
+            config,
+            policy,
+            SELECTED_UNGATED_PARAMETERS,
+        ),
+        "confidence-gated" => {
+            ConfidenceGatedQualityPipeline::new().process_with_policy(input, config, policy)
+        }
         _ => unreachable!("mode validated before processing"),
     }
 }

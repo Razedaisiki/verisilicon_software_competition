@@ -77,6 +77,7 @@ All notable project changes are recorded in this file.
 - Added explicit bicubic or recommended baseline selection to the paired evaluator while preserving bicubic default report compatibility.
 - Recorded reproducible Eval30 and local 1080p throughput evidence showing that RecommendedBaselineV1 does not justify replacing the bicubic runtime baseline.
 - Added a deterministic nine-configuration quality-parameter sweep with category-stratified cross-validation, separate PSNR/SSIM training selection, Pareto evidence, held-out category diagnostics, and a Windows one-command runner.
+- Added isolated selected-ungated and confidence-gated evaluator candidates, fixed-point coherent-edge residual gating, exact regression coverage, and reproducible quality and throughput evidence retaining the ungated selection.
 
 ### Fixed
 

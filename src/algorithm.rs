@@ -11,7 +11,7 @@ use std::fmt;
 use std::thread::{self, ScopedJoinHandle};
 
 pub use bicubic::BicubicBaseline;
-pub use quality::QualityPipeline;
+pub use quality::{ConfidenceGatedQualityPipeline, QualityPipeline};
 pub use recommended::RecommendedBaselineV1;
 
 /// Maximum number of independent channel workers used by the scalar pipelines.

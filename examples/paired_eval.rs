@@ -6,15 +6,17 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
+use verisilicon_sr::algorithm::quality::SELECTED_UNGATED_PARAMETERS;
 use verisilicon_sr::algorithm::{
-    BicubicBaseline, QualityPipeline, RecommendedBaselineV1, SuperResolution,
+    BicubicBaseline, ConfidenceGatedQualityPipeline, ExecutionPolicy, QualityPipeline,
+    RecommendedBaselineV1, SuperResolution,
 };
 use verisilicon_sr::image::Image;
 use verisilicon_sr::io::ppm::PpmP6Codec;
 use verisilicon_sr::metrics::{Psnr, luma_mssim, luma_psnr};
 use verisilicon_sr::spec::ProcessingConfig;
 
-const USAGE: &str = "Usage: paired_eval <pairs.tsv> <report.csv> [bicubic|recommended]";
+const USAGE: &str = "Usage: paired_eval <pairs.tsv> <report.csv> [bicubic|recommended] [quality|selected-ungated|confidence-gated]";
 const HEADER: &str = "record_type,pipeline,id,lr_path,hr_path,width,height,image_count,infinite_psnr_count,psnr_y_db,ssim_y\n";
 
 #[derive(Debug)]
@@ -53,6 +55,7 @@ struct PairScores {
     height: u32,
     baseline: Metrics,
     candidate: Metrics,
+    candidate_label: &'static str,
 }
 
 #[derive(Default)]
@@ -90,6 +93,23 @@ enum BaselineSelection {
     Recommended,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CandidateSelection {
+    Quality,
+    SelectedUngated,
+    ConfidenceGated,
+}
+
+impl CandidateSelection {
+    const fn report_label(self) -> &'static str {
+        match self {
+            Self::Quality => "candidate",
+            Self::SelectedUngated => "selected-ungated",
+            Self::ConfidenceGated => "confidence-gated",
+        }
+    }
+}
+
 fn parse_baseline(value: &str) -> Result<BaselineSelection, EvalError> {
     match value {
         "bicubic" => Ok(BaselineSelection::Bicubic),
@@ -100,9 +120,20 @@ fn parse_baseline(value: &str) -> Result<BaselineSelection, EvalError> {
     }
 }
 
+fn parse_candidate(value: &str) -> Result<CandidateSelection, EvalError> {
+    match value {
+        "quality" => Ok(CandidateSelection::Quality),
+        "selected-ungated" => Ok(CandidateSelection::SelectedUngated),
+        "confidence-gated" => Ok(CandidateSelection::ConfidenceGated),
+        _ => Err(error(format!(
+            "invalid candidate selector {value:?}; expected quality, selected-ungated, or confidence-gated"
+        ))),
+    }
+}
+
 fn main() -> ExitCode {
     let arguments: Vec<OsString> = env::args_os().skip(1).collect();
-    if !(2..=3).contains(&arguments.len()) {
+    if !(2..=4).contains(&arguments.len()) {
         eprintln!("{USAGE}");
         return ExitCode::from(2);
     }
@@ -118,7 +149,28 @@ fn main() -> ExitCode {
                 return ExitCode::from(2);
             }
         };
-        run_with_baseline(Path::new(&arguments[0]), Path::new(&arguments[1]), baseline)
+        let candidate = match arguments.get(3) {
+            Some(value) => {
+                let Some(value) = value.to_str() else {
+                    eprintln!("Error: candidate selector must be valid UTF-8");
+                    return ExitCode::from(2);
+                };
+                match parse_candidate(value) {
+                    Ok(selection) => selection,
+                    Err(failure) => {
+                        eprintln!("Error: {failure}");
+                        return ExitCode::from(2);
+                    }
+                }
+            }
+            None => CandidateSelection::Quality,
+        };
+        run_with_selections(
+            Path::new(&arguments[0]),
+            Path::new(&arguments[1]),
+            baseline,
+            candidate,
+        )
     } else {
         run(Path::new(&arguments[0]), Path::new(&arguments[1]))
     };
@@ -140,6 +192,15 @@ fn run_with_baseline(
     report: &Path,
     baseline: BaselineSelection,
 ) -> Result<(), EvalError> {
+    run_with_selections(manifest, report, baseline, CandidateSelection::Quality)
+}
+
+fn run_with_selections(
+    manifest: &Path,
+    report: &Path,
+    baseline: BaselineSelection,
+    candidate: CandidateSelection,
+) -> Result<(), EvalError> {
     if report.exists() {
         return Err(error(format!(
             "refusing to overwrite existing report: {}",
@@ -149,7 +210,7 @@ fn run_with_baseline(
     let pairs = load_and_validate_pairs(manifest)?;
     let mut scores = Vec::with_capacity(pairs.len());
     for pair in pairs {
-        scores.push(score_pair(pair, baseline)?);
+        scores.push(score_pair(pair, baseline, candidate)?);
     }
     let report_bytes = render_report(&scores)?;
     write_atomic(report, &report_bytes)
@@ -281,7 +342,11 @@ fn decode_ppm(path: &Path) -> Result<Image, EvalError> {
         .map_err(|failure| error(format!("failed to decode {}: {failure}", path.display())))
 }
 
-fn score_pair(pair: Pair, baseline_selection: BaselineSelection) -> Result<PairScores, EvalError> {
+fn score_pair(
+    pair: Pair,
+    baseline_selection: BaselineSelection,
+    candidate_selection: CandidateSelection,
+) -> Result<PairScores, EvalError> {
     let lr = decode_ppm(&pair.lr_path)?;
     let hr = decode_ppm(&pair.hr_path)?;
     let config = ProcessingConfig::new(lr.dimensions());
@@ -290,9 +355,19 @@ fn score_pair(pair: Pair, baseline_selection: BaselineSelection) -> Result<PairS
         BaselineSelection::Recommended => RecommendedBaselineV1::new().process(&lr, config),
     }
     .map_err(|failure| error(format!("baseline failed for {}: {failure}", pair.id)))?;
-    let candidate = QualityPipeline::new()
-        .process(&lr, config)
-        .map_err(|failure| error(format!("candidate failed for {}: {failure}", pair.id)))?;
+    let candidate = match candidate_selection {
+        CandidateSelection::Quality => QualityPipeline::new().process(&lr, config),
+        CandidateSelection::SelectedUngated => QualityPipeline::new().process_with_parameters(
+            &lr,
+            config,
+            ExecutionPolicy::Auto,
+            SELECTED_UNGATED_PARAMETERS,
+        ),
+        CandidateSelection::ConfidenceGated => {
+            ConfidenceGatedQualityPipeline::new().process(&lr, config)
+        }
+    }
+    .map_err(|failure| error(format!("candidate failed for {}: {failure}", pair.id)))?;
     if baseline.dimensions() != hr.dimensions() || candidate.dimensions() != hr.dimensions() {
         return Err(error(format!(
             "generated dimensions differ from HR for {}",
@@ -307,6 +382,7 @@ fn score_pair(pair: Pair, baseline_selection: BaselineSelection) -> Result<PairS
         pair,
         baseline: baseline_metrics,
         candidate: candidate_metrics,
+        candidate_label: candidate_selection.report_label(),
     })
 }
 
@@ -342,13 +418,14 @@ fn dataset_metrics<'a>(metrics: impl Iterator<Item = &'a Metrics>, count: usize)
 fn render_report(scores: &[PairScores]) -> Result<Vec<u8>, EvalError> {
     let baseline = dataset_metrics(scores.iter().map(|score| &score.baseline), scores.len());
     let candidate = dataset_metrics(scores.iter().map(|score| &score.candidate), scores.len());
+    let candidate_label = scores[0].candidate_label;
     let mut output = String::from(HEADER);
     for score in scores {
         append_image_row(&mut output, score, "baseline", score.baseline);
-        append_image_row(&mut output, score, "candidate", score.candidate);
+        append_image_row(&mut output, score, candidate_label, score.candidate);
     }
     append_dataset_row(&mut output, "baseline", scores.len(), baseline);
-    append_dataset_row(&mut output, "candidate", scores.len(), candidate);
+    append_dataset_row(&mut output, candidate_label, scores.len(), candidate);
     let psnr_delta = match (baseline.psnr, candidate.psnr) {
         (Psnr::Finite(baseline), Psnr::Finite(candidate)) => format!("{:.6}", candidate - baseline),
         _ => "undefined".to_owned(),
@@ -357,7 +434,7 @@ fn render_report(scores: &[PairScores]) -> Result<Vec<u8>, EvalError> {
         &mut output,
         &[
             "dataset_delta".to_owned(),
-            "candidate-minus-baseline".to_owned(),
+            format!("{candidate_label}-minus-baseline"),
             "__dataset_delta__".to_owned(),
             String::new(),
             String::new(),
@@ -491,8 +568,9 @@ fn write_atomic(report: &Path, bytes: &[u8]) -> Result<(), EvalError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BaselineSelection, HEADER, Metrics, dataset_metrics, load_and_validate_pairs,
-        parse_baseline, run, run_with_baseline, write_atomic,
+        BaselineSelection, CandidateSelection, HEADER, Metrics, dataset_metrics,
+        load_and_validate_pairs, parse_baseline, parse_candidate, run, run_with_baseline,
+        run_with_selections, write_atomic,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -730,6 +808,19 @@ mod tests {
             BaselineSelection::Recommended
         );
         assert!(parse_baseline("other").is_err());
+        assert_eq!(
+            parse_candidate("quality").unwrap(),
+            CandidateSelection::Quality
+        );
+        assert_eq!(
+            parse_candidate("selected-ungated").unwrap(),
+            CandidateSelection::SelectedUngated
+        );
+        assert_eq!(
+            parse_candidate("confidence-gated").unwrap(),
+            CandidateSelection::ConfidenceGated
+        );
+        assert!(parse_candidate("other").is_err());
         let root = temporary_directory("recommended");
         let (lr_path, hr_path) = add_pair(&root, "case", 41);
         let manifest = root.join("pairs.tsv");
@@ -741,12 +832,28 @@ mod tests {
         let default_report = root.join("default.csv");
         let bicubic_report = root.join("bicubic.csv");
         let recommended_report = root.join("recommended.csv");
+        let selected_report = root.join("selected.csv");
+        let gated_report = root.join("gated.csv");
         run(&manifest, &default_report).unwrap();
         run_with_baseline(&manifest, &bicubic_report, BaselineSelection::Bicubic).unwrap();
         run_with_baseline(
             &manifest,
             &recommended_report,
             BaselineSelection::Recommended,
+        )
+        .unwrap();
+        run_with_selections(
+            &manifest,
+            &selected_report,
+            BaselineSelection::Bicubic,
+            CandidateSelection::SelectedUngated,
+        )
+        .unwrap();
+        run_with_selections(
+            &manifest,
+            &gated_report,
+            BaselineSelection::Bicubic,
+            CandidateSelection::ConfidenceGated,
         )
         .unwrap();
         assert_eq!(
@@ -757,6 +864,18 @@ mod tests {
         let baseline_row = recommended.lines().nth(1).unwrap();
         assert!(baseline_row.starts_with("image,baseline,case,"));
         assert!(!baseline_row.contains(",inf,1.000000000"));
+        for (report, label) in [
+            (selected_report, "selected-ungated"),
+            (gated_report, "confidence-gated"),
+        ] {
+            let text = fs::read_to_string(report).unwrap();
+            assert!(
+                text.lines()
+                    .any(|line| line.starts_with(&format!("image,{label},case,")))
+            );
+            assert!(text.lines().any(|line| line
+                .starts_with(&format!("dataset_delta,{label}-minus-baseline,"))));
+        }
         fs::remove_dir_all(root).unwrap();
     }
 }

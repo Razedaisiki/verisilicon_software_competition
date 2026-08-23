@@ -31,6 +31,21 @@ serial and parallel results are required to match the oracle byte for byte.
 The optional `QualityPipeline` is not selected by the command-line interface
 and is not part of this submitted processing path.
 
+The evaluation-only `SELECTED_UNGATED_PARAMETERS` retain the same arithmetic
+with edge threshold 64, axis ratio 2, directional Q8 gain 32, and sharpening
+Q8 gain 64. All five Eval30 training folds independently selected this tuple
+for both local metrics. It does not silently replace the frozen quality or CLI
+paths.
+
+`ConfidenceGatedQualityPipeline` starts from that selected ungated result and
+blends its luma residual with an integer Q8 confidence. Confidence requires
+three neighboring normal contrasts to have the same sign, penalizes tangent
+intensity disagreement and contrast-profile changes, and ramps from zero at
+evidence 8 to full residual at evidence 48. Flat or sign-incoherent regions
+fall back to the bicubic luma. The existing local-envelope clamp remains.
+Eval30 measured this gate below the selected ungated result, so it remains an
+explicit failed experiment rather than a default path.
+
 The optional `RecommendedBaselineV1` is also excluded from the command-line
 processing path. It is a deterministic development experiment based on the
 organizer-supplied RGB-to-YUV, nearest-plus-convolution luma, and bilinear

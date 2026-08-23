@@ -102,6 +102,8 @@ Run the reproducible processing-only benchmark with:
 cargo run --locked --release --example processing_bench -- baseline auto 640 360 5
 cargo run --locked --release --example processing_bench -- recommended auto 640 360 5
 cargo run --locked --release --example processing_bench -- quality auto 640 360 5
+cargo run --locked --release --example processing_bench -- selected-ungated auto 640 360 5
+cargo run --locked --release --example processing_bench -- confidence-gated auto 640 360 5
 ```
 
 The benchmark uses a deterministic in-memory gradient, one unmeasured warm-up,
@@ -194,6 +196,18 @@ distinct report filename:
 ```text
 powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Baseline recommended -Report target/eval30-recommended-v1.csv
 ```
+
+Evaluate the coarse-sweep winner or the isolated confidence-gated experiment
+against the bicubic anchor with distinct report names:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Candidate selected-ungated -Report target/eval30-selected-ungated.csv
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Candidate confidence-gated -Report target/eval30-confidence-gated.csv
+```
+
+The gated experiment suppresses residuals outside coherent edges, but Eval30
+measured it below the selected ungated candidate on every image. It remains an
+explicit diagnostic and does not change `QualityPipeline` or `sr.exe`.
 
 Run the deterministic nine-configuration coarse parameter sweep with
 five-fold category-stratified cross-validation:

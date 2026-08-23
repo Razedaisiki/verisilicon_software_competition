@@ -159,14 +159,19 @@ Any failure removes the temporary file and publishes no partial report.
 ## Local implementation
 
 The dependency-free `paired_eval` Rust example implements this contract for
-the existing `QualityPipeline` and a selected baseline without changing those
+an explicitly selected candidate and baseline without changing those
 pipelines. The default baseline selector is `bicubic`. The optional
 `recommended` selector chooses the isolated `RecommendedBaselineV1` experiment.
+The default candidate selector is the frozen `quality` pipeline. Explicit
+`selected-ungated` and `confidence-gated` selectors choose the coarse-sweep
+winner and its isolated gating experiment.
 On Windows, the complete locked Eval30 workflow is:
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\evaluate.ps1
 powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Baseline recommended -Report target/eval30-recommended-v1.csv
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Candidate selected-ungated -Report target/eval30-selected-ungated.csv
+powershell -ExecutionPolicy Bypass -File .\evaluate.ps1 -Candidate confidence-gated -Report target/eval30-confidence-gated.csv
 ```
 
 For a prepared compatible manifest and an explicit report path, the evaluator
@@ -175,11 +180,15 @@ can also be run directly:
 ```text
 cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/report.csv bicubic
 cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/recommended-report.csv recommended
+cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/selected-report.csv bicubic selected-ungated
+cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/gated-report.csv bicubic confidence-gated
 ```
 
-The CSV keeps the versioned `baseline` role label, so every retained report
-must use a distinct filename and record the selector command alongside its
-hash. Omitting the selector remains byte-compatible with explicit `bicubic`.
+The CSV keeps the versioned `baseline` role label. The default candidate keeps
+the legacy `candidate` role; explicit candidates use their selector as the
+role. Every retained report must use a distinct filename and record the
+selector command alongside its hash. Omitting both selectors remains
+byte-compatible with explicit `bicubic quality`.
 
 The Python dataset utilities and Rust evaluator are development-only tools and
 are not included in the Windows submission candidate.

@@ -153,8 +153,8 @@ a material repeatable improvement over Auto threaded scalar processing.
 
 ## CI benchmark correctness
 
-`scripts/check_processing_bench.py` runs the release benchmark for all three
-pipelines with forced serial and parallel policies on an 8x5 image. It checks
+`scripts/check_processing_bench.py` runs the release benchmark for all five
+available modes with forced serial and parallel policies on an 8x5 image. It checks
 the requested and selected policies, dimensions, fixed checksums, and exact
 serial/parallel checksum equality. CI does not inspect elapsed time or enforce a
 wall-clock threshold.
@@ -175,3 +175,18 @@ fixture. The recommended experiment performs an extra nearest-plane allocation
 and full 3x3 luma refinement scan; its simpler interpolation kernel did not
 produce higher end-to-end throughput in this implementation. These local
 measurements are diagnostic and are not an official timing result.
+
+## Confidence-gate comparison
+
+On the same host, three interleaved release runs processed three measured
+1920x1080 frames per process after one warm-up. Auto selected parallel.
+
+| Candidate | Median FPS | FPS range | Change from selected ungated |
+| --- | ---: | ---: | ---: |
+| Selected ungated | 4.597 | 4.209-4.767 | reference |
+| Confidence gated | 4.004 | 3.758-4.766 | 12.9% lower |
+
+The smooth-gradient fixture produced the same checksum
+`98e3c40731c269e9` for both modes because their luma enhancement does not alter
+that fixture. The gate adds neighborhood evidence work and did not improve
+Eval30 quality, so neither quality nor throughput supports selecting it.

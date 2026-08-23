@@ -94,3 +94,27 @@ The generated CSV remains ignored under `target/`. Its SHA-256 is
 `2e05f05cee26c9f42894e0acfa98ee90958c1568880d65e91bab3abfce8ba2d0`.
 These are local tuning results, not an official-score claim; adoption of the
 parameters belongs to a separately reviewed algorithm milestone.
+
+## Confidence-gated residual experiment
+
+The fixed-point gate was compared against both bicubic and the selected
+ungated control with explicit evaluator selectors.
+
+| Pipeline | Mean Y-PSNR (dB) | Mean Y-SSIM |
+| --- | ---: | ---: |
+| Bicubic baseline | 32.871287 | 0.927772122 |
+| Selected ungated | 33.063362 | 0.930486109 |
+| Confidence gated | 32.971312 | 0.928395662 |
+
+The gated result remains above bicubic by `+0.100025 dB` and `+0.000623540`,
+but it is below selected ungated by `-0.092050 dB` and `-0.002090447`.
+It lost both metrics on all 30 images. Its category deltas versus selected
+ungated were nature (`-0.128055 dB`, `-0.004568274`), render
+(`-0.095135 dB`, `-0.001110137`), and text/UI (`-0.052962 dB`,
+`-0.000592932`). The gate is therefore retained only as an explicit negative
+experiment.
+
+The generated selected-ungated report SHA-256 is
+`14a59d95683e756f7604b10d5b238a3ceb1c0840de7989f134ef541e293cd348`.
+The confidence-gated report SHA-256 is
+`0b3617f8ce6017bcaa9d88c16c715776ed6fb032871fa4385da08aad0c6d71f4`.
