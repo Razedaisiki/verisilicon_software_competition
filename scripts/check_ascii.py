@@ -10,6 +10,7 @@ from pathlib import Path
 
 TEXT_SUFFIXES = {
     ".md",
+    ".json",
     ".py",
     ".ps1",
     ".rs",

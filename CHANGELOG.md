@@ -67,6 +67,9 @@ All notable project changes are recorded in this file.
 - Documented the confirmed equal-image mean Y-PSNR and mean Y-SSIM objective categories and their 50/50 weights.
 - Added an exact paired HR/LR local evaluation contract with deterministic luma, windowed MSSIM, dataset reduction, reporting, failure, and baseline-comparison rules.
 - Kept the existing whole-image global SSIM explicitly classified as a legacy synthetic diagnostic.
+- Added a locked 30-image local evaluation catalog balanced across nature photographs, game-like CG renders, and text or UI screenshots.
+- Added deterministic HTTPS fetch, source-hash verification, centered RGB8 HR crop, Pillow bicubic LR generation, attribution, pair locks, and strict prepared-tree verification.
+- Added offline synthetic dataset checks and Windows CI validation without downloading or redistributing the evaluation images.
 
 ### Fixed
 

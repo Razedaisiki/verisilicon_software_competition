@@ -4,6 +4,7 @@
 /Cmodel.tar
 /DIV2K_test_LR/
 /DIV2K_test_LR.zip
+/evaluation/eval30/local/
 
 # Rust build output.
 /target/

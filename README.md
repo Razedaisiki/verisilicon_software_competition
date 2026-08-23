@@ -140,6 +140,28 @@ python scripts/check_div2k_converter.py
 See `docs/DATA_PREPARATION.md` for validation rules, atomic output behavior,
 usage, and unresolved official conversion caveats.
 
+## Local paired evaluation dataset
+
+The development-only Eval30 catalog locks 30 reusable internet sources: 10
+nature photographs, 10 game-like CG renders, and 10 text or UI screenshots.
+The preparation tool creates an equal-category paired HR/LR database using
+centered 16:9 HR crops and deterministic Pillow 11.3.0 bicubic 2x
+downsampling. Images and generated artifacts remain local and ignored by Git;
+the tracked catalogs retain source, author, license, dimensions, and SHA-256.
+
+```text
+python -m pip install -r evaluation/requirements.txt
+python scripts/eval_dataset.py validate evaluation/eval30/sources --locked
+python scripts/eval_dataset.py fetch evaluation/eval30/sources evaluation/eval30/local/source
+python scripts/eval_dataset.py prepare evaluation/eval30/sources evaluation/eval30/local/source evaluation/eval30/local/prepared
+python scripts/eval_dataset.py verify evaluation/eval30/sources evaluation/eval30/local/prepared
+python scripts/check_eval_dataset.py
+```
+
+See `evaluation/eval30/README.md` for the exact local layout, preparation
+contract, and redistribution warning. Eval30 is not an organizer dataset and
+does not enter the Windows submission candidate.
+
 ## Development checks
 
 ```text
@@ -148,6 +170,8 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-targets --all-features --locked
 python scripts/check_ascii.py
 python scripts/check_div2k_converter.py
+python scripts/eval_dataset.py validate evaluation/eval30/sources --locked
+python scripts/check_eval_dataset.py
 ```
 
 Official contest documents, assets, images, archives, and generated outputs are local inputs and are not tracked in this repository.

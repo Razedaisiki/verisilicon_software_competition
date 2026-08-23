@@ -34,6 +34,15 @@ jobs:
       - name: Check ASCII policy
         run: python scripts/check_ascii.py
 
+      - name: Install evaluation dataset dependency
+        run: python -m pip install --disable-pip-version-check -r evaluation/requirements.txt
+
+      - name: Validate locked evaluation catalog
+        run: python scripts/eval_dataset.py validate evaluation/eval30/sources --locked
+
+      - name: Check evaluation dataset automation
+        run: python scripts/check_eval_dataset.py
+
       - name: Check development PNG converter
         run: python scripts/check_div2k_converter.py
 
