@@ -40,6 +40,9 @@ jobs:
       - name: Check ASCII policy
         run: python scripts/check_ascii.py
 
+      - name: Check development PNG converter
+        run: python scripts/check_div2k_converter.py
+
       - name: Build release binary
         run: cargo build --locked --release
 

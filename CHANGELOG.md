@@ -50,6 +50,11 @@ All notable project changes are recorded in this file.
 - Added a deterministic source-only provisional review ZIP creator and strict manifest verifier.
 - Added cross-platform CI creation and verification of the provisional review package.
 - Added a Rust 1.85 PowerShell one-click release build entry point.
+- Added specific ignore rules for the local DIV2K test directory and archive.
+- Added a dependency-free developer PNG-to-PPM/raw converter with strict PNG validation and atomic directory output.
+- Added synthetic cross-platform converter checks covering every PNG scanline filter and required failure paths.
+- Documented development-only DIV2K preparation without adding PNG to the Rust runtime path.
+- Bounded developer PNG source and decoded sizes and enforced the PNG chunk-type reserved bit.
 
 ### Fixed
 

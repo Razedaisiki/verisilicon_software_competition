@@ -2,6 +2,8 @@
 *.pdf
 /Cmodel/
 /Cmodel.tar
+/DIV2K_test_LR/
+/DIV2K_test_LR.zip
 
 # Rust build output.
 /target/
@@ -32,3 +34,7 @@ Desktop.ini
 *~
 .idea/
 .vscode/
+
+# Python tooling cache.
+__pycache__/
+*.py[cod]

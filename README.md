@@ -103,6 +103,23 @@ cargo run --locked --release --example visual_qa -- <output_dir>
 
 The example generates constant, smooth-gradient, hard-edge, and checker-detail cases. It refuses to overwrite any planned artifact. Generated files are local evaluation output and must not be committed.
 
+## Development dataset conversion
+
+The official `sr` runtime remains PPM/raw-only. For local evaluation, the
+Python-standard-library-only `scripts/convert_div2k.py` tool converts the
+constrained ignored DIV2K PNG directory to strict PPM P6 or packed RGB888 while
+preserving relative paths. PNG decoding never enters the Rust runtime or
+submission processing path.
+
+```text
+python scripts/convert_div2k.py --format ppm DIV2K_test_LR target/div2k-ppm
+python scripts/convert_div2k.py --format raw DIV2K_test_LR target/div2k-raw
+python scripts/check_div2k_converter.py
+```
+
+See `docs/DATA_PREPARATION.md` for validation rules, atomic output behavior,
+usage, and unresolved official conversion caveats.
+
 ## Development checks
 
 ```text
@@ -110,6 +127,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-targets --all-features --locked
 python scripts/check_ascii.py
+python scripts/check_div2k_converter.py
 ```
 
 Official contest documents, assets, images, archives, and generated outputs are local inputs and are not tracked in this repository.
