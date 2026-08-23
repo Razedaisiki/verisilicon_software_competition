@@ -239,12 +239,17 @@ and comparison against the validation manifest:
 ```text
 cargo run --locked --release --example quality_sweep -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-validation-sweep.csv 5
 cargo run --locked --release --example paired_eval -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-validation-report.csv bicubic selected-ungated
+cargo run --locked --release --example paired_eval -- evaluation/div2k/local/prepared/validation/pairs.tsv target/div2k-fine-finalist-report.csv bicubic fine-finalist
 ```
 
 The first held-out 100-image validation run placed the selected candidate above
 the local bicubic anchor by `+0.168886 dB` Y-PSNR and `+0.003565996` Y-SSIM.
 See `evaluation/div2k/RESULTS.md`; this is local development evidence, not an
 official score.
+
+The `fine-finalist` selector evaluates only the fine-sweep finalist
+`64/2/24/80`. It remains evaluation-only pending that separate 100-pair
+comparison and does not change `sr.exe` or `SELECTED_UNGATED_PARAMETERS`.
 
 ## Local paired evaluation dataset
 

@@ -163,9 +163,10 @@ an explicitly selected candidate and baseline without changing those
 pipelines. The default baseline selector is `bicubic`. The optional
 `recommended` selector chooses the isolated `RecommendedBaselineV1` experiment.
 The default candidate selector is the frozen `quality` pipeline. Explicit
-`selected-ungated`, `confidence-gated`, and `bilinear-chroma` selectors choose
-the coarse-sweep winner, its isolated gating experiment, or the isolated
-bilinear-chroma experiment.
+`selected-ungated`, `confidence-gated`, `bilinear-chroma`, and `fine-finalist`
+selectors choose the coarse-sweep winner, its isolated gating experiment, the
+isolated bilinear-chroma experiment, or the evaluation-only `64/2/24/80`
+fine-sweep finalist.
 On Windows, the complete locked Eval30 workflow is:
 
 ```text
@@ -183,6 +184,7 @@ cargo run --offline --locked --release --example paired_eval -- path/to/pairs.ts
 cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/recommended-report.csv recommended
 cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/selected-report.csv bicubic selected-ungated
 cargo run --offline --locked --release --example paired_eval -- path/to/pairs.tsv path/to/gated-report.csv bicubic confidence-gated
+cargo run --offline --locked --release --example paired_eval -- path/to/validation-pairs.tsv path/to/fine-finalist-report.csv bicubic fine-finalist
 ```
 
 The CSV keeps the versioned `baseline` role label. The default candidate keeps
@@ -252,6 +254,11 @@ training fold. Its out-of-fold deltas against `64/2/32/64` were `+0.053531 dB`
 and `+0.000547420` Y-SSIM. This is a screening result only; the configuration
 must remain an explicit finalist until it passes one separate 100-pair DIV2K
 validation comparison.
+
+The `fine-finalist` selector provides exactly that one-candidate comparison. It
+routes to fixed `64/2/24/80` parameters and remains evaluation-only; it does not
+modify `SELECTED_UNGATED_PARAMETERS`, the public `sr.exe` path, or any default
+evaluator selector.
 
 ## Remaining official unknowns
 

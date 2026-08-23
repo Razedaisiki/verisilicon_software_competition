@@ -12,8 +12,8 @@ use std::thread::{self, ScopedJoinHandle};
 
 pub use bicubic::BicubicBaseline;
 pub use quality::{
-    BilinearChromaQualityPipeline, ConfidenceGatedQualityPipeline, QualityPipeline,
-    SelectedQualityPipeline,
+    BilinearChromaQualityPipeline, ConfidenceGatedQualityPipeline, FineFinalistQualityPipeline,
+    QualityPipeline, SelectedQualityPipeline,
 };
 pub use recommended::RecommendedBaselineV1;
 

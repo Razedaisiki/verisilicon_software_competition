@@ -8,14 +8,15 @@ use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 use verisilicon_sr::algorithm::{
     BicubicBaseline, BilinearChromaQualityPipeline, ConfidenceGatedQualityPipeline,
-    QualityPipeline, RecommendedBaselineV1, SelectedQualityPipeline, SuperResolution,
+    FineFinalistQualityPipeline, QualityPipeline, RecommendedBaselineV1, SelectedQualityPipeline,
+    SuperResolution,
 };
 use verisilicon_sr::image::Image;
 use verisilicon_sr::io::ppm::PpmP6Codec;
 use verisilicon_sr::metrics::{Psnr, luma_mssim, luma_psnr};
 use verisilicon_sr::spec::ProcessingConfig;
 
-const USAGE: &str = "Usage: paired_eval <pairs.tsv> <report.csv> [bicubic|recommended] [quality|selected-ungated|confidence-gated|bilinear-chroma]";
+const USAGE: &str = "Usage: paired_eval <pairs.tsv> <report.csv> [bicubic|recommended] [quality|selected-ungated|confidence-gated|bilinear-chroma|fine-finalist]";
 const HEADER: &str = "record_type,pipeline,id,lr_path,hr_path,width,height,image_count,infinite_psnr_count,psnr_y_db,ssim_y\n";
 
 #[derive(Debug)]
@@ -98,6 +99,7 @@ enum CandidateSelection {
     SelectedUngated,
     ConfidenceGated,
     BilinearChroma,
+    FineFinalist,
 }
 
 impl CandidateSelection {
@@ -107,6 +109,7 @@ impl CandidateSelection {
             Self::SelectedUngated => "selected-ungated",
             Self::ConfidenceGated => "confidence-gated",
             Self::BilinearChroma => "bilinear-chroma",
+            Self::FineFinalist => "fine-finalist",
         }
     }
 }
@@ -127,8 +130,9 @@ fn parse_candidate(value: &str) -> Result<CandidateSelection, EvalError> {
         "selected-ungated" => Ok(CandidateSelection::SelectedUngated),
         "confidence-gated" => Ok(CandidateSelection::ConfidenceGated),
         "bilinear-chroma" => Ok(CandidateSelection::BilinearChroma),
+        "fine-finalist" => Ok(CandidateSelection::FineFinalist),
         _ => Err(error(format!(
-            "invalid candidate selector {value:?}; expected quality, selected-ungated, confidence-gated, or bilinear-chroma"
+            "invalid candidate selector {value:?}; expected quality, selected-ungated, confidence-gated, bilinear-chroma, or fine-finalist"
         ))),
     }
 }
@@ -366,6 +370,7 @@ fn score_pair(
         CandidateSelection::BilinearChroma => {
             BilinearChromaQualityPipeline::new().process(&lr, config)
         }
+        CandidateSelection::FineFinalist => FineFinalistQualityPipeline::new().process(&lr, config),
     }
     .map_err(|failure| error(format!("candidate failed for {}: {failure}", pair.id)))?;
     if baseline.dimensions() != hr.dimensions() || candidate.dimensions() != hr.dimensions() {
@@ -824,8 +829,13 @@ mod tests {
             parse_candidate("bilinear-chroma").unwrap(),
             CandidateSelection::BilinearChroma
         );
+        assert_eq!(
+            parse_candidate("fine-finalist").unwrap(),
+            CandidateSelection::FineFinalist
+        );
         assert!(parse_candidate("other").is_err());
         assert!(USAGE.contains("bilinear-chroma"));
+        assert!(USAGE.contains("fine-finalist"));
         let root = temporary_directory("recommended");
         let (lr_path, hr_path) = add_pair(&root, "case", 41);
         let manifest = root.join("pairs.tsv");
@@ -840,6 +850,7 @@ mod tests {
         let selected_report = root.join("selected.csv");
         let gated_report = root.join("gated.csv");
         let bilinear_chroma_report = root.join("bilinear-chroma.csv");
+        let fine_finalist_report = root.join("fine-finalist.csv");
         run(&manifest, &default_report).unwrap();
         run_with_baseline(&manifest, &bicubic_report, BaselineSelection::Bicubic).unwrap();
         run_with_baseline(
@@ -864,6 +875,13 @@ mod tests {
         .unwrap();
         run_with_selections(
             &manifest,
+            &fine_finalist_report,
+            BaselineSelection::Bicubic,
+            CandidateSelection::FineFinalist,
+        )
+        .unwrap();
+        run_with_selections(
+            &manifest,
             &gated_report,
             BaselineSelection::Bicubic,
             CandidateSelection::ConfidenceGated,
@@ -881,6 +899,7 @@ mod tests {
             (selected_report, "selected-ungated"),
             (gated_report, "confidence-gated"),
             (bilinear_chroma_report, "bilinear-chroma"),
+            (fine_finalist_report, "fine-finalist"),
         ] {
             let text = fs::read_to_string(report).unwrap();
             assert!(

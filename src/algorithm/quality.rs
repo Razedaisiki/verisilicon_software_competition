@@ -50,6 +50,14 @@ pub const SELECTED_UNGATED_PARAMETERS: QualityParameters = QualityParameters {
     sharpen_gain_q8: 64,
 };
 
+/// Evaluation-only finalist from the bounded fine sweep.
+pub const FINE_FINALIST_PARAMETERS: QualityParameters = QualityParameters {
+    edge_threshold: 64,
+    axis_dominance_ratio: 2,
+    directional_refine_gain_q8: 24,
+    sharpen_gain_q8: 80,
+};
+
 impl QualityParameters {
     fn validate(self) -> Result<Self, AlgorithmError> {
         if self.edge_threshold < 0
@@ -168,6 +176,39 @@ impl SelectedQualityPipeline {
 }
 
 impl SuperResolution for SelectedQualityPipeline {
+    fn process(&self, input: &Image, config: ProcessingConfig) -> Result<Image, AlgorithmError> {
+        self.process_with_policy(input, config, ExecutionPolicy::Auto)
+    }
+}
+
+/// Evaluation-only fine-sweep finalist pending paired validation.
+///
+/// This does not replace [`SelectedQualityPipeline`] or any public default.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FineFinalistQualityPipeline;
+
+impl FineFinalistQualityPipeline {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
+    }
+
+    pub fn process_with_policy(
+        &self,
+        input: &Image,
+        config: ProcessingConfig,
+        policy: ExecutionPolicy,
+    ) -> Result<Image, AlgorithmError> {
+        QualityPipeline::new().process_with_parameters(
+            input,
+            config,
+            policy,
+            FINE_FINALIST_PARAMETERS,
+        )
+    }
+}
+
+impl SuperResolution for FineFinalistQualityPipeline {
     fn process(&self, input: &Image, config: ProcessingConfig) -> Result<Image, AlgorithmError> {
         self.process_with_policy(input, config, ExecutionPolicy::Auto)
     }
@@ -838,10 +879,10 @@ fn zeroed_u8(length: usize) -> Result<Vec<u8>, AlgorithmError> {
 mod tests {
     use super::{
         BilinearChromaQualityPipeline, ConfidenceGatedQualityPipeline, DEFAULT_QUALITY_PARAMETERS,
-        EdgeOrientation, Neighborhood3x3, QualityParameters, QualityPipeline,
-        SELECTED_UNGATED_PARAMETERS, SelectedQualityPipeline, confidence_alpha_q8,
-        confidence_alpha_q8_reference, confidence_alpha_q8_with_neighborhood, confidence_ramp_q8,
-        detect_edge_orientation_reference, detect_edge_orientation_unchecked,
+        EdgeOrientation, FINE_FINALIST_PARAMETERS, FineFinalistQualityPipeline, Neighborhood3x3,
+        QualityParameters, QualityPipeline, SELECTED_UNGATED_PARAMETERS, SelectedQualityPipeline,
+        confidence_alpha_q8, confidence_alpha_q8_reference, confidence_alpha_q8_with_neighborhood,
+        confidence_ramp_q8, detect_edge_orientation_reference, detect_edge_orientation_unchecked,
         detect_edge_orientation_with_parameters, enhance_luma, enhance_luma_candidate,
         enhance_luma_candidate_reference, local_envelope, local_envelope_reference,
     };
@@ -1189,6 +1230,50 @@ mod tests {
             selected_outputs.push(selected);
         }
         assert_eq!(selected_outputs[0], selected_outputs[1]);
+    }
+
+    #[test]
+    fn fine_finalist_is_exact_explicit_repeatable_and_isolated() {
+        assert_eq!(
+            FINE_FINALIST_PARAMETERS,
+            QualityParameters {
+                edge_threshold: 64,
+                axis_dominance_ratio: 2,
+                directional_refine_gain_q8: 24,
+                sharpen_gain_q8: 80,
+            }
+        );
+        assert_eq!(
+            SELECTED_UNGATED_PARAMETERS,
+            QualityParameters {
+                edge_threshold: 64,
+                axis_dominance_ratio: 2,
+                directional_refine_gain_q8: 32,
+                sharpen_gain_q8: 64,
+            }
+        );
+        let input = checker_detail(dimensions(9, 7), 2).unwrap();
+        let config = ProcessingConfig::new(input.dimensions());
+        let pipeline = FineFinalistQualityPipeline::new();
+        let mut outputs = Vec::new();
+        for policy in [ExecutionPolicy::Serial, ExecutionPolicy::Parallel] {
+            let finalist = pipeline
+                .process_with_policy(&input, config, policy)
+                .unwrap();
+            let explicit = QualityPipeline::new()
+                .process_with_parameters(&input, config, policy, FINE_FINALIST_PARAMETERS)
+                .unwrap();
+            assert_eq!(finalist, explicit);
+            assert_eq!(
+                finalist,
+                pipeline
+                    .process_with_policy(&input, config, policy)
+                    .unwrap()
+            );
+            outputs.push(finalist);
+        }
+        assert_eq!(outputs[0], outputs[1]);
+        assert_eq!(outputs[0].dimensions(), dimensions(18, 14));
     }
 
     #[test]
