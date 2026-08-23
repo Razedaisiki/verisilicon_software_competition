@@ -196,13 +196,30 @@ are not included in the Windows submission candidate.
 
 ## Parameter sweep and cross-validation
 
-The dependency-free `quality_sweep` example evaluates a fixed, deterministic
-nine-configuration coarse grid for the existing luma quality arithmetic. The
-frozen public candidate parameters are always included. It derives the content
-category by removing one final underscore-or-hyphen numeric suffix from each
-pair ID, then assigns sorted members of every category round-robin across
-folds. Every category must contain at least as many images as the requested
-fold count.
+The dependency-free `quality_sweep` example defaults to the fixed,
+deterministic nine-configuration coarse grid for the existing luma quality
+arithmetic. An explicit fine mode is available only for conservative Eval30
+screening around the selected `64/2/32/64` configuration. It contains exactly
+32 candidates rather than a Cartesian grid:
+
+- the selected center;
+- 14 one-axis neighbors: edge threshold `48/56/72/80`, axis ratio `1/3`,
+  directional gain `16/24/40/48`, or sharpen gain `48/56/72/80`, with other
+  values held at the selected center;
+- eight edge/sharpen interactions combining edge `48/56/72/80` with sharpen
+  `56/72`;
+- eight directional/sharpen interactions combining directional `24/40` with
+  sharpen `48/56/72/80`;
+- the frozen default `48/2/64/48` as a legacy comparison candidate.
+
+The selected and frozen default parameters are always included. Fine-mode
+delta columns use the selected `64/2/32/64` configuration as their explicit
+comparison anchor; coarse mode retains its historical frozen-default anchor.
+The tool
+derives the content category by removing one final underscore-or-hyphen numeric
+suffix from each pair ID, then assigns sorted members of every category
+round-robin across folds. Every category must contain at least as many images
+as the requested fold count.
 
 For every fold, candidate selection uses only the complementary training
 images. PSNR and SSIM are ranked and selected independently, and the training
@@ -216,13 +233,18 @@ CSV report, and publishes the result atomically:
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\sweep.ps1
+powershell -ExecutionPolicy Bypass -File .\sweep.ps1 -Search Fine -Report target/quality-fine-sweep.csv
 ```
 
-The default is five folds and `target/quality-sweep.csv`. The Rust example also
-accepts an explicit compatible manifest, output path, and fold count:
+The default is coarse search, five folds, and `target/quality-sweep.csv`.
+`-Search Fine` remains Eval30 screening only: it does not authorize DIV2K train
+or validation use and cannot change the public pipeline. The Rust example also
+accepts an explicit compatible manifest, output path, fold count, and search
+selector:
 
 ```text
 cargo run --offline --locked --release --example quality_sweep -- path/to/pairs.tsv path/to/results.csv 5
+cargo run --offline --locked --release --example quality_sweep -- path/to/eval30-pairs.tsv path/to/fine-results.csv 5 fine
 ```
 
 ## Remaining official unknowns

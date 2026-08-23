@@ -1,4 +1,4 @@
-//! Deterministic coarse parameter sweep with stratified cross-validation.
+//! Deterministic bounded parameter sweeps with stratified cross-validation.
 //!
 //! Candidate selection sees training aggregates only. Validation metrics are
 //! reported afterward, independently for PSNR and SSIM, without inventing a
@@ -14,19 +14,36 @@ use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 use verisilicon_sr::algorithm::ExecutionPolicy;
 use verisilicon_sr::algorithm::quality::{
-    DEFAULT_QUALITY_PARAMETERS, QualityParameters, QualityPipeline,
+    DEFAULT_QUALITY_PARAMETERS, QualityParameters, QualityPipeline, SELECTED_UNGATED_PARAMETERS,
 };
 use verisilicon_sr::image::Image;
 use verisilicon_sr::io::ppm::PpmP6Codec;
 use verisilicon_sr::metrics::{Psnr, luma_mssim, luma_psnr};
 use verisilicon_sr::spec::{ProcessingConfig, Scale};
 
-const USAGE: &str = "Usage: quality_sweep <pairs.tsv> <results.csv> [folds]";
+const USAGE: &str = "Usage: quality_sweep <pairs.tsv> <results.csv> [folds] [coarse|fine]";
 const DEFAULT_FOLDS: usize = 5;
-const HEADER: &str = "record_type,fold,category,edge_threshold,axis_dominance_ratio,directional_refine_gain_q8,sharpen_gain_q8,image_count,mean_psnr_y_db,mean_ssim_y,delta_psnr_y_db_vs_default,delta_ssim_y_vs_default,training_psnr_rank,training_ssim_rank,training_pareto,selection\n";
+const COARSE_HEADER: &str = "record_type,fold,category,edge_threshold,axis_dominance_ratio,directional_refine_gain_q8,sharpen_gain_q8,image_count,mean_psnr_y_db,mean_ssim_y,delta_psnr_y_db_vs_default,delta_ssim_y_vs_default,training_psnr_rank,training_ssim_rank,training_pareto,selection\n";
+const FINE_HEADER: &str = "record_type,fold,category,edge_threshold,axis_dominance_ratio,directional_refine_gain_q8,sharpen_gain_q8,image_count,mean_psnr_y_db,mean_ssim_y,delta_psnr_y_db_vs_selected,delta_ssim_y_vs_selected,training_psnr_rank,training_ssim_rank,training_pareto,selection\n";
 
 #[derive(Debug)]
 struct SweepError(String);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SearchSpace {
+    Coarse,
+    Fine,
+}
+
+impl SearchSpace {
+    fn parse(value: &str) -> Result<Self, SweepError> {
+        match value {
+            "coarse" => Ok(Self::Coarse),
+            "fine" => Ok(Self::Fine),
+            _ => Err(error("search space must be coarse or fine")),
+        }
+    }
+}
 
 impl fmt::Display for SweepError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -84,7 +101,7 @@ impl CompensatedSum {
 
 fn main() -> ExitCode {
     let arguments: Vec<OsString> = env::args_os().skip(1).collect();
-    if !(2..=3).contains(&arguments.len()) {
+    if !(2..=4).contains(&arguments.len()) {
         eprintln!("{USAGE}");
         return ExitCode::from(2);
     }
@@ -98,7 +115,28 @@ fn main() -> ExitCode {
         },
         None => DEFAULT_FOLDS,
     };
-    match run(Path::new(&arguments[0]), Path::new(&arguments[1]), folds) {
+    let search_space = match arguments.get(3) {
+        Some(value) => match value.to_str() {
+            Some(value) => match SearchSpace::parse(value) {
+                Ok(value) => value,
+                Err(failure) => {
+                    eprintln!("Error: {failure}");
+                    return ExitCode::from(2);
+                }
+            },
+            None => {
+                eprintln!("Error: search space must be valid UTF-8");
+                return ExitCode::from(2);
+            }
+        },
+        None => SearchSpace::Coarse,
+    };
+    match run_with_space(
+        Path::new(&arguments[0]),
+        Path::new(&arguments[1]),
+        folds,
+        search_space,
+    ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(failure) => {
             eprintln!("Error: {failure}");
@@ -107,7 +145,17 @@ fn main() -> ExitCode {
     }
 }
 
+#[cfg(test)]
 fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
+    run_with_space(manifest, output, folds, SearchSpace::Coarse)
+}
+
+fn run_with_space(
+    manifest: &Path,
+    output: &Path,
+    folds: usize,
+    search_space: SearchSpace,
+) -> Result<(), SweepError> {
     if output.exists() {
         return Err(error(format!(
             "refusing to overwrite sweep output: {}",
@@ -116,7 +164,10 @@ fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
     }
     let pairs = load_pairs(manifest)?;
     let assignments = stratified_folds(&pairs, folds)?;
-    let parameters = coarse_parameters();
+    let parameters = match search_space {
+        SearchSpace::Coarse => coarse_parameters(),
+        SearchSpace::Fine => fine_parameters(),
+    };
     let mut metric_table = Vec::with_capacity(parameters.len());
     for &candidate in &parameters {
         let mut metrics = Vec::with_capacity(pairs.len());
@@ -126,12 +177,16 @@ fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
         metric_table.push(metrics);
     }
 
-    let mut output_text = String::from(HEADER);
-    let default_index = parameters
+    let (header, comparison_parameters) = match search_space {
+        SearchSpace::Coarse => (COARSE_HEADER, DEFAULT_QUALITY_PARAMETERS),
+        SearchSpace::Fine => (FINE_HEADER, SELECTED_UNGATED_PARAMETERS),
+    };
+    let mut output_text = String::from(header);
+    let comparison_index = parameters
         .iter()
-        .position(|parameters| *parameters == DEFAULT_QUALITY_PARAMETERS)
-        .ok_or_else(|| error("coarse parameter space lost the frozen default"))?;
-    let frozen_default = aggregate(&metric_table[default_index])?;
+        .position(|parameters| *parameters == comparison_parameters)
+        .ok_or_else(|| error("parameter space lost its comparison anchor"))?;
+    let comparison_anchor = aggregate(&metric_table[comparison_index])?;
     let mut psnr_out_of_fold = vec![None; pairs.len()];
     let mut ssim_out_of_fold = vec![None; pairs.len()];
     for fold in 0..folds {
@@ -169,7 +224,7 @@ fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
                 Some(candidate),
                 training.len(),
                 training_aggregates[candidate_index],
-                training_aggregates[default_index],
+                training_aggregates[comparison_index],
                 Some(psnr_ranks[candidate_index]),
                 Some(ssim_ranks[candidate_index]),
                 Some(pareto[candidate_index]),
@@ -183,7 +238,7 @@ fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
                 Some(candidate),
                 validation.len(),
                 validation_aggregates[candidate_index],
-                validation_aggregates[default_index],
+                validation_aggregates[comparison_index],
                 Some(psnr_ranks[candidate_index]),
                 Some(ssim_ranks[candidate_index]),
                 Some(pareto[candidate_index]),
@@ -197,7 +252,7 @@ fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
                     .push(index);
             }
             for (category, indices) in categories {
-                let category_default = aggregate_indices(&metric_table[default_index], &indices)?;
+                let category_anchor = aggregate_indices(&metric_table[comparison_index], &indices)?;
                 append_result_row(
                     &mut output_text,
                     "validation_category",
@@ -206,7 +261,7 @@ fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
                     Some(candidate),
                     indices.len(),
                     aggregate_indices(&metric_table[candidate_index], &indices)?,
-                    category_default,
+                    category_anchor,
                     Some(psnr_ranks[candidate_index]),
                     Some(ssim_ranks[candidate_index]),
                     Some(pareto[candidate_index]),
@@ -237,7 +292,7 @@ fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
         None,
         psnr_out_of_fold.len(),
         psnr_cross_validation,
-        frozen_default,
+        comparison_anchor,
         None,
         None,
         None,
@@ -251,7 +306,7 @@ fn run(manifest: &Path, output: &Path, folds: usize) -> Result<(), SweepError> {
         None,
         ssim_out_of_fold.len(),
         ssim_cross_validation,
-        frozen_default,
+        comparison_anchor,
         None,
         None,
         None,
@@ -277,6 +332,56 @@ fn coarse_parameters() -> Vec<QualityParameters> {
     values.push(DEFAULT_QUALITY_PARAMETERS);
     values.sort();
     values.dedup();
+    values
+}
+
+fn fine_parameters() -> Vec<QualityParameters> {
+    const SELECTED_NEIGHBORHOOD: [(i32, i32, i32, i32); 31] = [
+        (64, 2, 32, 64),
+        (48, 2, 32, 64),
+        (56, 2, 32, 64),
+        (72, 2, 32, 64),
+        (80, 2, 32, 64),
+        (64, 1, 32, 64),
+        (64, 3, 32, 64),
+        (64, 2, 16, 64),
+        (64, 2, 24, 64),
+        (64, 2, 40, 64),
+        (64, 2, 48, 64),
+        (64, 2, 32, 48),
+        (64, 2, 32, 56),
+        (64, 2, 32, 72),
+        (64, 2, 32, 80),
+        (48, 2, 32, 56),
+        (48, 2, 32, 72),
+        (56, 2, 32, 56),
+        (56, 2, 32, 72),
+        (72, 2, 32, 56),
+        (72, 2, 32, 72),
+        (80, 2, 32, 56),
+        (80, 2, 32, 72),
+        (64, 2, 24, 48),
+        (64, 2, 24, 56),
+        (64, 2, 24, 72),
+        (64, 2, 24, 80),
+        (64, 2, 40, 48),
+        (64, 2, 40, 56),
+        (64, 2, 40, 72),
+        (64, 2, 40, 80),
+    ];
+    let mut values = SELECTED_NEIGHBORHOOD
+        .into_iter()
+        .map(|(edge, axis, directional, sharpen)| QualityParameters {
+            edge_threshold: edge,
+            axis_dominance_ratio: axis,
+            directional_refine_gain_q8: directional,
+            sharpen_gain_q8: sharpen,
+        })
+        .collect::<Vec<_>>();
+    values.push(DEFAULT_QUALITY_PARAMETERS);
+    values.sort();
+    values.dedup();
+    debug_assert!(values.contains(&SELECTED_UNGATED_PARAMETERS));
     values
 }
 
@@ -546,7 +651,7 @@ fn append_result_row(
     parameters: Option<QualityParameters>,
     image_count: usize,
     metrics: Aggregate,
-    default_metrics: Aggregate,
+    comparison_metrics: Aggregate,
     psnr_rank: Option<usize>,
     ssim_rank: Option<usize>,
     pareto: Option<bool>,
@@ -563,13 +668,13 @@ fn append_result_row(
             ]
         },
     );
-    let delta_psnr = match (metrics.psnr, default_metrics.psnr) {
+    let delta_psnr = match (metrics.psnr, comparison_metrics.psnr) {
         (Psnr::Infinite, Psnr::Infinite) => "0.000000".to_owned(),
         (Psnr::Infinite, Psnr::Finite(_)) => "inf".to_owned(),
         (Psnr::Finite(_), Psnr::Infinite) => "-inf".to_owned(),
         (Psnr::Finite(value), Psnr::Finite(default)) => format!("{:.6}", value - default),
     };
-    let delta_ssim = format!("{:.9}", metrics.mssim - default_metrics.mssim);
+    let delta_ssim = format!("{:.9}", metrics.mssim - comparison_metrics.mssim);
     let psnr_rank = psnr_rank.map(|value| value.to_string()).unwrap_or_default();
     let ssim_rank = ssim_rank.map(|value| value.to_string()).unwrap_or_default();
     let pareto = pareto.map(|value| value.to_string()).unwrap_or_default();
@@ -616,8 +721,9 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), SweepError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Aggregate, Metrics, Pair, aggregate_indices, category_from_id, coarse_parameters,
-        pareto_flags, ranks, run, select_psnr, select_ssim, stratified_folds,
+        Aggregate, Metrics, Pair, SearchSpace, USAGE, aggregate_indices, category_from_id,
+        coarse_parameters, fine_parameters, pareto_flags, ranks, run, run_with_space, select_psnr,
+        select_ssim, stratified_folds,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -673,6 +779,46 @@ mod tests {
         assert_eq!(values.len(), 9);
         assert!(values.contains(&verisilicon_sr::algorithm::quality::DEFAULT_QUALITY_PARAMETERS));
         assert!(values.windows(2).all(|window| window[0] < window[1]));
+    }
+
+    #[test]
+    fn fine_space_is_bounded_stable_and_centered_on_selected() {
+        let values = fine_parameters();
+        let selected = verisilicon_sr::algorithm::quality::SELECTED_UNGATED_PARAMETERS;
+        let frozen_default = verisilicon_sr::algorithm::quality::DEFAULT_QUALITY_PARAMETERS;
+        assert_eq!(values.len(), 32);
+        assert!(values.contains(&selected));
+        assert!(values.contains(&frozen_default));
+        assert!(values.windows(2).all(|window| window[0] < window[1]));
+
+        let difference_count =
+            |parameters: &verisilicon_sr::algorithm::quality::QualityParameters| {
+                usize::from(parameters.edge_threshold != selected.edge_threshold)
+                    + usize::from(parameters.axis_dominance_ratio != selected.axis_dominance_ratio)
+                    + usize::from(
+                        parameters.directional_refine_gain_q8
+                            != selected.directional_refine_gain_q8,
+                    )
+                    + usize::from(parameters.sharpen_gain_q8 != selected.sharpen_gain_q8)
+            };
+        assert_eq!(
+            values
+                .iter()
+                .filter(|parameters| difference_count(parameters) == 1)
+                .count(),
+            14
+        );
+        assert_eq!(
+            values
+                .iter()
+                .filter(|parameters| difference_count(parameters) == 2)
+                .count(),
+            16
+        );
+        assert_eq!(SearchSpace::parse("coarse").unwrap(), SearchSpace::Coarse);
+        assert_eq!(SearchSpace::parse("fine").unwrap(), SearchSpace::Fine);
+        assert!(SearchSpace::parse("other").is_err());
+        assert!(USAGE.contains("[coarse|fine]"));
     }
 
     #[test]
@@ -766,6 +912,8 @@ mod tests {
         fs::write(&manifest_path, manifest).unwrap();
         let first = root.join("first.csv");
         let second = root.join("second.csv");
+        let fine_first = root.join("fine-first.csv");
+        let fine_second = root.join("fine-second.csv");
         run(&manifest_path, &first, 2).unwrap();
         run(&manifest_path, &second, 2).unwrap();
         let bytes = fs::read(&first).unwrap();
@@ -793,6 +941,30 @@ mod tests {
         }
         assert!(run(&manifest_path, &first, 2).is_err());
         assert_eq!(fs::read(first).unwrap(), bytes);
+
+        run_with_space(&manifest_path, &fine_first, 2, SearchSpace::Fine).unwrap();
+        run_with_space(&manifest_path, &fine_second, 2, SearchSpace::Fine).unwrap();
+        let fine_bytes = fs::read(&fine_first).unwrap();
+        assert_eq!(fine_bytes, fs::read(&fine_second).unwrap());
+        let fine_text = String::from_utf8(fine_bytes).unwrap();
+        assert!(fine_text.starts_with("record_type,fold,category,"));
+        assert!(fine_text.contains("delta_psnr_y_db_vs_selected"));
+        assert!(fine_text.contains("delta_ssim_y_vs_selected"));
+        assert_eq!(fine_text.matches("training_candidate").count(), 64);
+        assert_eq!(fine_text.matches("validation_candidate").count(), 64);
+        assert_eq!(fine_text.matches("validation_category").count(), 192);
+        assert_eq!(fine_text.matches("cross_validation").count(), 2);
+        let selected_rows = fine_text
+            .lines()
+            .filter(|line| !line.starts_with("cross_validation,") && line.contains(",64,2,32,64,"))
+            .collect::<Vec<_>>();
+        assert_eq!(selected_rows.len(), 10);
+        for row in selected_rows {
+            let fields = row.split(',').collect::<Vec<_>>();
+            assert_eq!(fields[10], "0.000000");
+            assert_eq!(fields[11], "0.000000000");
+        }
+        assert!(run_with_space(&manifest_path, &fine_first, 2, SearchSpace::Fine).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 

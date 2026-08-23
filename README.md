@@ -306,6 +306,14 @@ five-fold category-stratified cross-validation:
 powershell -ExecutionPolicy Bypass -File .\sweep.ps1
 ```
 
+An explicit Eval30-only fine screening mode evaluates 32 bounded candidates
+around the selected `64/2/32/64` luma parameters and reports deltas against
+that selected configuration. Coarse remains the default:
+
+```text
+powershell -ExecutionPolicy Bypass -File .\sweep.ps1 -Search Fine -Report target/quality-fine-sweep.csv
+```
+
 The sweep measures final RGB outputs through the same Y-PSNR and Y-MSSIM
 implementation. It reports training and held-out deltas separately, ranks
 PSNR and SSIM independently, and does not invent an unknown combined score.

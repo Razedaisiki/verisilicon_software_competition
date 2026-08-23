@@ -2,7 +2,9 @@ param(
     [string]$PreparedDirectory = "evaluation/eval30/local/prepared",
     [string]$Report = "target/quality-sweep.csv",
     [ValidateRange(2, 10)]
-    [int]$Folds = 5
+    [int]$Folds = 5,
+    [ValidateSet("Coarse", "Fine")]
+    [string]$Search = "Coarse"
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +23,7 @@ $catalogPath = Join-Path $sourceRoot "evaluation/eval30/sources"
 $manifestPath = Join-Path $preparedPath "pairs.tsv"
 $binaryPath = Join-Path $sourceRoot "target/release/examples/quality_sweep.exe"
 $reportParent = Split-Path -Parent $reportPath
+$searchArgument = $Search.ToLowerInvariant()
 
 Push-Location $sourceRoot
 try {
@@ -35,7 +38,7 @@ try {
     }
 
     New-Item -ItemType Directory -Force -Path $reportParent | Out-Null
-    & $binaryPath $manifestPath $reportPath $Folds
+    & $binaryPath $manifestPath $reportPath $Folds $searchArgument
     if ($LASTEXITCODE -ne 0) {
         throw "Quality sweep failed with exit code $LASTEXITCODE."
     }
@@ -43,4 +46,4 @@ try {
     Pop-Location
 }
 
-Write-Output "Wrote quality sweep report to $reportPath"
+Write-Output "Wrote $searchArgument quality sweep report to $reportPath"
