@@ -175,10 +175,9 @@ Write-Output "Offline rebuild is byte-identical to bin/sr.exe for $targetTriple.
 def package_readme(target: str) -> bytes:
     return f"""# Windows Submission Candidate
 
-This uncompressed TAR uses the contest directory intent with a Windows-only
-executable and build entry point. The PDF page 10 names are `bin/sr` and
-`build.sh`; this candidate instead contains `bin/sr.exe` and `build.ps1`.
-Organizer confirmation of those Windows names is required before submission.
+This uncompressed TAR contains the required Windows evaluation roles.
+`build.ps1` is the one-click build program, and `bin/sr.exe` is the precompiled
+executable used for standard evaluation-machine testing.
 
 Declared Rust target: `{target}`
 

@@ -18,7 +18,7 @@ This document separates official software contest requirements from project deci
 | PDF-010 | Neural networks, pretrained models, and runtime model files are prohibited. | Confirmed | Software contest PDF | Audit source, package contents, and runtime file access. |
 | PDF-011 | Scoring includes objective quality, subjective quality, speed, and AI Coding evaluation. | Confirmed | Software contest PDF | Map evaluation evidence to all four scoring categories. |
 | PDF-012 | Admission requires at least 1 frame per second and quality at least equal to the prescribed bicubic baseline. | Confirmed | Software contest PDF | Run the official benchmark and quality comparison when supplied. |
-| PDF-013 | Submission is an uncompressed TAR containing `submit_pkg/src/`, `bin/sr`, `build.sh`, `doc/ALGORITHM.md`, `doc/AI_CODING.md`, `logs/`, and `README.md`. | Confirmed | Software contest PDF page 10 | Validate archive type, exact directory intent, rebuildability, records, and AI Coding logs. |
+| PDF-013 | The Windows submission is an uncompressed TAR containing `submit_pkg/src/`, precompiled evaluation executable `bin/sr.exe`, one-click `build.ps1`, `doc/ALGORITHM.md`, `doc/AI_CODING.md`, `logs/`, and `README.md`. | Confirmed | Software contest PDF page 10 and Windows platform interpretation | Validate archive type, exact directory roles, rebuildability, records, and AI Coding logs. |
 
 ## Project decisions
 
@@ -32,7 +32,7 @@ These choices are repository policy, not claims about the contest PDF.
 | PRJ-004 | Record each implementation milestone in `CHANGELOG.md`. | Adopted | Project milestone brief | Require an Unreleased entry during review. |
 | PRJ-005 | Use small atomic commits and GitHub Actions checks. | Adopted | Project milestone brief | Review commit scope and require format, lint, test, and build jobs. |
 | PRJ-006 | Preserve a deterministic scalar implementation as the correctness oracle for optimized CPU paths. | Adopted | Engineering decision | Compare optimized output byte-for-byte with scalar output. |
-| PRJ-007 | Maintain build, CI, and package execution for Windows only. | Adopted | User platform decision | Run the pinned MSVC target in Windows CI and record the PDF naming deviation. |
+| PRJ-007 | Maintain build, CI, and package execution for Windows only. | Adopted | User platform decision | Run the pinned MSVC target in Windows CI; keep one-click `build.ps1` and precompiled `bin/sr.exe`. |
 
 ## Provisional assumptions
 
@@ -57,8 +57,6 @@ The following details must be replaced with versioned committee data before fina
   naming and any metadata requirements outside the packed payload.
 - Official timing API, measurement boundary, warm-up procedure, host platform, CPU configuration, thread policy, and compiler settings.
 - Official image dataset, objective metric formulas, score weights, thresholds, and subjective review procedure.
-- Organizer acceptance of Windows-only `bin/sr.exe` and `build.ps1` in place of
-  the PDF page 10 `bin/sr` and `build.sh`, plus archive filename, result record,
-  and AI Coding log schema details.
+- Archive filename, result record, and AI Coding log schema details.
 
 When the official package is available, add its version, filename, page or section locator, and exact acceptance evidence to the relevant row before freezing an interface.

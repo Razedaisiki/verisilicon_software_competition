@@ -1,10 +1,10 @@
 # Windows Build and Submission Candidate Guide
 
-This repository maintains Windows only. The local candidate uses an
-uncompressed TAR and preserves the contest directory intent, but it is not yet
-an official submission: PDF page 10 names `bin/sr` and `build.sh`, while the
-Windows candidate contains `bin/sr.exe` and `build.ps1`. Organizer acceptance
-of those two Windows names is required before submission.
+This repository maintains Windows only. The uncompressed TAR contains the two
+required evaluation roles: `build.ps1` is the one-click build program, and
+`bin/sr.exe` is the precompiled executable used by the evaluation machine for
+standard testing. Final packaging still requires real conversation exports and
+any organizer-specified archive filename or record schema.
 
 ## Prerequisites
 
@@ -97,8 +97,6 @@ submit_pkg/
 ## Final reconciliation checklist
 
 - Obtain written acceptance of Rust 1.85 and `x86_64-pc-windows-msvc`.
-- Obtain written acceptance of `bin/sr.exe` and `build.ps1` in place of the PDF
-  page 10 Unix-style names.
 - Record the required archive filename, result record schema, and AI Coding log
   export format.
 - Confirm the exact PPM interpretation and versioned raw RGB888 contract.

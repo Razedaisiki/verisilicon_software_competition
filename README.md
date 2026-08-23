@@ -154,8 +154,9 @@ python scripts/submission_package.py create target/submission-candidate.tar --bi
 python scripts/submission_package.py verify target/submission-candidate.tar
 ```
 
-The candidate uses `bin/sr.exe` and `build.ps1`. PDF page 10 shows `bin/sr` and
-`build.sh`, so organizer confirmation of the Windows names remains mandatory.
+The Windows package keeps the two required roles: `build.ps1` is the one-click
+build program, and `bin/sr.exe` is the precompiled executable used for standard
+evaluation-machine testing.
 See `docs/COMPLIANCE.md` for the
 evidence audit, `docs/SUBMISSION.md` for build/evaluation/package instructions
 and the official-package reconciliation checklist, `docs/REQUIREMENTS.md` for
