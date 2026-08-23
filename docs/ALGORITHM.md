@@ -50,6 +50,14 @@ fall back to the bicubic luma. The existing local-envelope clamp remains.
 Eval30 measured this gate below the selected ungated result, so it remains an
 explicit failed experiment rather than a default path.
 
+`BilinearChromaQualityPipeline` keeps the selected luma path byte-for-byte but
+uses the project bilinear 2x scaler for Cb and Cr. Direct-composition tests lock
+this separation and retain exact serial/parallel results. Eval30 measured the
+candidate below selected ungated by `0.001765 dB` Y-PSNR and `0.000028696`
+Y-SSIM, while local 1080p measurements found no repeatable throughput gain.
+It remains an explicit failed experiment; public processing keeps bicubic
+chroma.
+
 The optional `RecommendedBaselineV1` is also excluded from the command-line
 processing path. It is a deterministic development experiment based on the
 organizer-supplied RGB-to-YUV, nearest-plus-convolution luma, and bilinear

@@ -191,6 +191,24 @@ The smooth-gradient fixture produced the same checksum
 that fixture. The gate adds neighborhood evidence work and did not improve
 Eval30 quality, so neither quality nor throughput supports selecting it.
 
+## Bilinear-chroma comparison
+
+On the same host, five interleaved release processes per candidate processed
+three measured 1920x1080 frames after one warm-up. Auto selected parallel.
+
+| Candidate | Median FPS | Change from selected ungated |
+| --- | ---: | ---: |
+| Selected ungated | 4.867 | reference |
+| Bilinear chroma | 4.832 | -0.7% |
+
+Both modes produced checksum `98e3c40731c269e9` on the smooth-gradient fixture;
+the small fixed-vector benchmark distinguishes bilinear chroma with checksum
+`d7cfb61c1ac3f05d` and locks serial/parallel equality. Host noise is larger
+than the measured median difference, so this experiment provides no repeatable
+throughput improvement. Its Eval30 quality was also slightly lower in both
+metrics, and it was rejected without consuming the held-out DIV2K validation
+set.
+
 ## Luma neighborhood reuse
 
 The selected and frozen quality paths now load one clamped 3x3 neighborhood

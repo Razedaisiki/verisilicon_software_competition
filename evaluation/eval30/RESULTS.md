@@ -118,3 +118,23 @@ The generated selected-ungated report SHA-256 is
 `14a59d95683e756f7604b10d5b238a3ceb1c0840de7989f134ef541e293cd348`.
 The confidence-gated report SHA-256 is
 `0b3617f8ce6017bcaa9d88c16c715776ed6fb032871fa4385da08aad0c6d71f4`.
+
+## Bilinear chroma experiment
+
+The isolated candidate kept selected bicubic-plus-enhanced luma and changed
+only Cb/Cr scaling to the project bilinear 2x implementation.
+
+| Pipeline | Mean Y-PSNR (dB) | Mean Y-SSIM |
+| --- | ---: | ---: |
+| Bicubic baseline | 32.871287 | 0.927772122 |
+| Selected ungated | 33.063362 | 0.930486109 |
+| Bilinear chroma | 33.061597 | 0.930457413 |
+
+Bilinear chroma remained above the baseline by `+0.190311 dB` and
+`+0.002685291`, but it was below selected ungated by `-0.001765 dB` and
+`-0.000028696`. Because both objective metrics declined, the candidate was not
+run on the held-out 100-image DIV2K validation set and was not selected for the
+public command-line path.
+
+The generated report remains ignored under `target/`. Its SHA-256 is
+`59fc56e07c4dd5122f62ce69cfe3fa830b789a0bd56a7d7c900cbdeb2814bf86`.

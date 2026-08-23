@@ -83,6 +83,7 @@ All notable project changes are recorded in this file.
 - Replaced sequential CLI batch execution with an adaptive persistent frame-worker scheduler that caps memory, avoids nested oversubscription, preserves one-image automatic policy, and retains byte-exact ordered results and diagnostics.
 - Reused one clamped 3x3 neighborhood per luma output sample, added an exact sample-based regression oracle and isolated hot-loop benchmark, and recorded a byte-identical local throughput improvement.
 - Added a deterministic offline DIV2K pair preparation workflow defaulting to the current 100 validation images, with optional train/all selection, exact selected membership, strict RGB8 and X2 validation, atomic non-overwriting PPM publication, source/output/manifest SHA-256 locks, safe paths, synthetic Windows CI coverage, and byte-repeatable held-out quality evidence while keeping Eval30, unused train data, and input-only test IDs separate.
+- Added and rejected an isolated bicubic-luma/bilinear-chroma candidate after it slightly reduced both Eval30 metrics and provided no repeatable 1080p throughput gain; the public selected pipeline remains unchanged.
 
 ### Fixed
 

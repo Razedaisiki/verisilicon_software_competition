@@ -6,14 +6,50 @@ use std::hint::black_box;
 use std::process::ExitCode;
 use std::time::Instant;
 use verisilicon_sr::algorithm::{
-    BicubicBaseline, ConfidenceGatedQualityPipeline, ExecutionPolicy, QualityPipeline,
-    RecommendedBaselineV1, SelectedQualityPipeline, selected_execution_policy,
+    BicubicBaseline, BilinearChromaQualityPipeline, ConfidenceGatedQualityPipeline,
+    ExecutionPolicy, QualityPipeline, RecommendedBaselineV1, SelectedQualityPipeline,
+    selected_execution_policy,
 };
 use verisilicon_sr::fixtures::smooth_gradient;
 use verisilicon_sr::image::Image;
 use verisilicon_sr::spec::{Dimensions, ProcessingConfig};
 
-const USAGE: &str = "Usage: processing_bench <baseline|recommended|quality|selected-ungated|confidence-gated> <auto|serial|parallel> <width> <height> <iterations>";
+const USAGE: &str = "Usage: processing_bench <baseline|recommended|quality|selected-ungated|confidence-gated|bilinear-chroma> <auto|serial|parallel> <width> <height> <iterations>";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Mode {
+    Baseline,
+    Recommended,
+    Quality,
+    SelectedUngated,
+    ConfidenceGated,
+    BilinearChroma,
+}
+
+impl Mode {
+    fn parse(value: &str) -> Result<Self, Box<dyn Error>> {
+        match value {
+            "baseline" => Ok(Self::Baseline),
+            "recommended" => Ok(Self::Recommended),
+            "quality" => Ok(Self::Quality),
+            "selected-ungated" => Ok(Self::SelectedUngated),
+            "confidence-gated" => Ok(Self::ConfidenceGated),
+            "bilinear-chroma" => Ok(Self::BilinearChroma),
+            _ => Err("mode must be baseline, recommended, quality, selected-ungated, confidence-gated, or bilinear-chroma".into()),
+        }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Baseline => "baseline",
+            Self::Recommended => "recommended",
+            Self::Quality => "quality",
+            Self::SelectedUngated => "selected-ungated",
+            Self::ConfidenceGated => "confidence-gated",
+            Self::BilinearChroma => "bilinear-chroma",
+        }
+    }
+}
 
 fn main() -> ExitCode {
     match run() {
@@ -31,16 +67,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     if args.len() != 5 {
         return Err("expected five arguments".into());
     }
-    let mode = args[0].as_str();
-    if !matches!(
-        mode,
-        "baseline" | "recommended" | "quality" | "selected-ungated" | "confidence-gated"
-    ) {
-        return Err(
-            "mode must be baseline, recommended, quality, selected-ungated, or confidence-gated"
-                .into(),
-        );
-    }
+    let mode = Mode::parse(&args[0])?;
     let policy = match args[1].as_str() {
         "auto" => ExecutionPolicy::Auto,
         "serial" => ExecutionPolicy::Serial,
@@ -73,7 +100,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let megapixels_per_second =
         output_pixels as f64 * f64::from(iterations) / seconds / 1_000_000.0;
 
-    println!("mode={mode}");
+    println!("mode={}", mode.as_str());
     println!(
         "available_parallelism={}",
         std::thread::available_parallelism().map_or(1, usize::from)
@@ -102,22 +129,48 @@ fn run() -> Result<(), Box<dyn Error>> {
 }
 
 fn process(
-    mode: &str,
+    mode: Mode,
     input: &Image,
     config: ProcessingConfig,
     policy: ExecutionPolicy,
 ) -> Result<Image, verisilicon_sr::algorithm::AlgorithmError> {
     match mode {
-        "baseline" => BicubicBaseline::new().process_with_policy(input, config, policy),
-        "recommended" => RecommendedBaselineV1::new().process_with_policy(input, config, policy),
-        "quality" => QualityPipeline::new().process_with_policy(input, config, policy),
-        "selected-ungated" => {
+        Mode::Baseline => BicubicBaseline::new().process_with_policy(input, config, policy),
+        Mode::Recommended => {
+            RecommendedBaselineV1::new().process_with_policy(input, config, policy)
+        }
+        Mode::Quality => QualityPipeline::new().process_with_policy(input, config, policy),
+        Mode::SelectedUngated => {
             SelectedQualityPipeline::new().process_with_policy(input, config, policy)
         }
-        "confidence-gated" => {
+        Mode::ConfidenceGated => {
             ConfidenceGatedQualityPipeline::new().process_with_policy(input, config, policy)
         }
-        _ => unreachable!("mode validated before processing"),
+        Mode::BilinearChroma => {
+            BilinearChromaQualityPipeline::new().process_with_policy(input, config, policy)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Mode, USAGE};
+
+    #[test]
+    fn mode_selector_and_usage_are_explicit() {
+        for (text, expected) in [
+            ("baseline", Mode::Baseline),
+            ("recommended", Mode::Recommended),
+            ("quality", Mode::Quality),
+            ("selected-ungated", Mode::SelectedUngated),
+            ("confidence-gated", Mode::ConfidenceGated),
+            ("bilinear-chroma", Mode::BilinearChroma),
+        ] {
+            assert_eq!(Mode::parse(text).unwrap(), expected);
+            assert_eq!(expected.as_str(), text);
+        }
+        assert!(Mode::parse("other").is_err());
+        assert!(USAGE.contains("bilinear-chroma"));
     }
 }
 

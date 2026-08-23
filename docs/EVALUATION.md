@@ -163,8 +163,9 @@ an explicitly selected candidate and baseline without changing those
 pipelines. The default baseline selector is `bicubic`. The optional
 `recommended` selector chooses the isolated `RecommendedBaselineV1` experiment.
 The default candidate selector is the frozen `quality` pipeline. Explicit
-`selected-ungated` and `confidence-gated` selectors choose the coarse-sweep
-winner and its isolated gating experiment.
+`selected-ungated`, `confidence-gated`, and `bilinear-chroma` selectors choose
+the coarse-sweep winner, its isolated gating experiment, or the isolated
+bilinear-chroma experiment.
 On Windows, the complete locked Eval30 workflow is:
 
 ```text

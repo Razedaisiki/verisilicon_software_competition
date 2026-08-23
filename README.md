@@ -35,6 +35,12 @@ below the bicubic anchor in both local quality metrics and below it in local
 processing throughput, so the experiment is retained for evidence rather than
 selected as the default.
 
+`BilinearChromaQualityPipeline` is another explicit negative experiment. It
+keeps the selected bicubic-plus-enhanced luma path and changes only Cb/Cr to
+bilinear 2x scaling. Eval30 measured it slightly below the selected pipeline in
+both Y metrics, and interleaved 1080p runs found no repeatable speed gain. The
+public command-line path therefore retains bicubic chroma.
+
 ## PPM P6 codec
 
 The library codec accepts RGB8 PPM P6 data with decimal width and height, `maxval` exactly 255, legal header whitespace, and comments before header values. It requires an exact packed RGB8 raster with no trailing bytes. Encoding uses a deterministic header and raster representation.

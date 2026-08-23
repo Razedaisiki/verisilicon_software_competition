@@ -13,6 +13,7 @@ EXPECTED_CHECKSUMS = {
     "quality": "1211042eb00b138c",
     "selected-ungated": "6ee8bc73b89869d2",
     "confidence-gated": "7896b83e18e630ba",
+    "bilinear-chroma": "d7cfb61c1ac3f05d",
 }
 
 
