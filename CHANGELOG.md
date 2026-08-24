@@ -94,6 +94,11 @@ All notable project changes are recorded in this file.
 - Promoted the accepted 64/2/24/80 parameters to the public selected pipeline, froze the prior 64/2/32/64 fine-sweep and rejected-experiment anchor under a dedicated constant, and retained `fine-finalist` as an alias for report-command reproducibility.
 - Recorded a five-process local 1920x1080 promoted-parameter smoke benchmark with a 5.160 FPS median, a 5.011-5.205 FPS range, and identical checksums.
 
+### Changed
+
+- Reduced staged submission source to the Cargo files and modules compiled for
+  `sr.exe`, excluding developer examples and external regression tests.
+
 ### Fixed
 
 - Restored Rust 1.85 CI compatibility for the PPM adapter.

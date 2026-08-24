@@ -73,7 +73,9 @@ logs.
 To prepare the exact submission directory before the real conversation export
 is available, use `stage`. The destination must be named `submit_pkg`; this
 creates every fixed payload and an empty `logs/` directory without weakening
-the final TAR checks.
+the final TAR checks. The staged source allowlist contains only the Cargo
+manifest, lockfile, and Rust modules compiled for `sr.exe`; developer examples
+and external regression tests stay in the repository and are not submitted.
 
 ```text
 powershell -ExecutionPolicy Bypass -File .\build.ps1

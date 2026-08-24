@@ -21,8 +21,6 @@ TARGET_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
 SOURCE_FILES = (
     "Cargo.lock",
     "Cargo.toml",
-    "examples/processing_bench.rs",
-    "examples/visual_qa.rs",
     "src/algorithm.rs",
     "src/algorithm/bicubic.rs",
     "src/algorithm/color.rs",
@@ -38,7 +36,6 @@ SOURCE_FILES = (
     "src/main.rs",
     "src/metrics.rs",
     "src/spec.rs",
-    "tests/quality_regression.rs",
 )
 DOC_FILES = {
     f"{PREFIX}/doc/ALGORITHM.md": "docs/ALGORITHM.md",
