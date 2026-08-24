@@ -18,9 +18,11 @@ FIXED_MTIME = 0
 FILE_MODE = 0o644
 EXEC_MODE = 0o755
 TARGET_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
+RUST_TOOLCHAIN = "1.85.0"
 SOURCE_FILES = (
     "Cargo.lock",
     "Cargo.toml",
+    "rust-toolchain.toml",
     "src/algorithm.rs",
     "src/algorithm/bicubic.rs",
     "src/algorithm/color.rs",
@@ -121,6 +123,7 @@ def collect_logs(logs_root: Path) -> dict[str, bytes]:
 def build_script(target: str) -> bytes:
     text = f'''$ErrorActionPreference = "Stop"
 $packageRoot = $PSScriptRoot
+$toolchainVersion = "{RUST_TOOLCHAIN}"
 $targetTriple = "{target}"
 $manifest = Join-Path $packageRoot "src\\Cargo.toml"
 $targetDir = Join-Path $packageRoot "build-target"
@@ -134,14 +137,20 @@ $previousIncremental = $env:CARGO_INCREMENTAL
 $previousRustFlags = $env:CARGO_ENCODED_RUSTFLAGS
 
 try {{
+    $actualRustc = & rustc "+$toolchainVersion" --version
+    if ($LASTEXITCODE -ne 0 -or $actualRustc -ne "rustc $toolchainVersion (4d91de4e4 2025-02-17)") {{
+        throw "Rust $toolchainVersion is required; received: $actualRustc"
+    }}
     $env:CARGO_NET_OFFLINE = "true"
     $env:CARGO_INCREMENTAL = "0"
     $env:CARGO_ENCODED_RUSTFLAGS = @(
         "-C",
         "link-arg=/Brepro",
+        "-C",
+        "target-feature=+crt-static",
         "--remap-path-prefix=$packageRoot\\src=."
     ) -join $separator
-    cargo build --offline --locked --release --target $targetTriple --manifest-path $manifest --target-dir $targetDir
+    cargo "+$toolchainVersion" build --offline --locked --release --target $targetTriple --manifest-path $manifest --target-dir $targetDir
     if ($LASTEXITCODE -ne 0) {{
         throw "Cargo release build failed with exit code $LASTEXITCODE."
     }}
@@ -194,9 +203,9 @@ submit_pkg/
 
 Declared Rust target: `{target}`
 
-Requirements are 64-bit Windows, Rust 1.85.0, Cargo, and the declared MSVC
-target. The project has no third-party Rust dependencies. From `submit_pkg`,
-run:
+Requirements are 64-bit Windows, exact Rust {RUST_TOOLCHAIN}, Cargo, and the
+declared MSVC target. The project has no third-party Rust dependencies. The
+release binary statically links the MSVC C runtime. From `submit_pkg`, run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\\build.ps1

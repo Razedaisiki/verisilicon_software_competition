@@ -6,6 +6,8 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- Added a repository and submission `rust-toolchain.toml` that pins exact Rust
+  1.85.0 for reproducible Windows builds.
 - Added a non-overwriting `submit_pkg` staging command that prepares all fixed
   Windows submission files while leaving mandatory real conversation logs for
   final packaging.
@@ -96,6 +98,8 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- Pinned both one-click build paths to exact Rust 1.85.0, enabled static MSVC
+  CRT linkage, and made unexpected compiler versions fail before compilation.
 - Promoted every RGB/YCbCr matrix coefficient, chroma offset, and Q8 rounding
   value from inline numeric literals to documented named source constants.
 - Expanded submission README, algorithm provenance, and AI coding records with

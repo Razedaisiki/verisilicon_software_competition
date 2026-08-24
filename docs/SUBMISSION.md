@@ -9,12 +9,13 @@ any organizer-specified archive filename or record schema.
 ## Prerequisites
 
 - 64-bit Windows.
-- Rust 1.85.0 with the `x86_64-pc-windows-msvc` target.
+- Exact Rust 1.85.0 with the `x86_64-pc-windows-msvc` target.
 - Python 3 for validation and deterministic TAR creation.
 - PowerShell.
 
 The Rust dependency graph is empty. Build and package rebuild operations use
-Cargo offline and locked modes.
+Cargo offline and locked modes. The release build uses static CRT linkage so
+the precompiled executable does not require a separate Visual C++ runtime DLL.
 
 ## Repository build
 
