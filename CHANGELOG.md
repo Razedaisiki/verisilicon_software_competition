@@ -115,4 +115,6 @@ All notable project changes are recorded in this file.
 
 - Made CI synthetic-log setup idempotent so a restored build directory cannot
   stop the final package audit before TAR creation.
+- Isolated CI staging, archive, and extraction paths by workflow run so restored
+  Rust build caches cannot collide with safe non-overwriting package checks.
 - Restored Rust 1.85 CI compatibility for the PPM adapter.

@@ -77,39 +77,39 @@ jobs:
       - name: Verify submission staging without conversation logs
         shell: pwsh
         run: |
-          python scripts/submission_package.py stage target/ci-staging/submit_pkg --binary bin/sr.exe --target x86_64-pc-windows-msvc
-          $logs = @(Get-ChildItem -LiteralPath target/ci-staging/submit_pkg/logs -Recurse -File)
+          python scripts/submission_package.py stage target/ci-package-${{ github.run_id }}/staging/submit_pkg --binary bin/sr.exe --target x86_64-pc-windows-msvc
+          $logs = @(Get-ChildItem -LiteralPath target/ci-package-${{ github.run_id }}/staging/submit_pkg/logs -Recurse -File)
           if ($logs.Count -ne 0) { throw "Staging must not invent conversation logs." }
-          cmake -S target/ci-staging/submit_pkg -B target/ci-staging/cmake-build
-          cmake --build target/ci-staging/cmake-build --config Release
+          cmake -S target/ci-package-${{ github.run_id }}/staging/submit_pkg -B target/ci-package-${{ github.run_id }}/staging/cmake-build
+          cmake --build target/ci-package-${{ github.run_id }}/staging/cmake-build --config Release
 
       - name: Create synthetic package-test log
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path target/ci-synthetic-ai-logs -Force | Out-Null
-          Set-Content -Encoding ascii -LiteralPath target/ci-synthetic-ai-logs/NOT-A-REAL-SUBMISSION.txt -Value "Synthetic CI-only log for structural package testing."
+          New-Item -ItemType Directory -Path target/ci-package-${{ github.run_id }}/synthetic-ai-logs -Force | Out-Null
+          Set-Content -Encoding ascii -LiteralPath target/ci-package-${{ github.run_id }}/synthetic-ai-logs/NOT-A-REAL-SUBMISSION.txt -Value "Synthetic CI-only log for structural package testing."
 
       - name: Create and verify Windows submission candidate
         run: >-
-          python scripts/submission_package.py create target/ci-submission-candidate.tar
+          python scripts/submission_package.py create target/ci-package-${{ github.run_id }}/submission-candidate.tar
           --binary bin/sr.exe
-          --logs target/ci-synthetic-ai-logs --target x86_64-pc-windows-msvc
+          --logs target/ci-package-${{ github.run_id }}/synthetic-ai-logs --target x86_64-pc-windows-msvc
 
       - name: Verify deterministic Windows TAR creation
         shell: pwsh
         run: |
-          python scripts/submission_package.py create target/ci-submission-candidate-copy.tar --binary bin/sr.exe --logs target/ci-synthetic-ai-logs --target x86_64-pc-windows-msvc
-          $first = (Get-FileHash -Algorithm SHA256 -LiteralPath target/ci-submission-candidate.tar).Hash
-          $second = (Get-FileHash -Algorithm SHA256 -LiteralPath target/ci-submission-candidate-copy.tar).Hash
+          python scripts/submission_package.py create target/ci-package-${{ github.run_id }}/submission-candidate-copy.tar --binary bin/sr.exe --logs target/ci-package-${{ github.run_id }}/synthetic-ai-logs --target x86_64-pc-windows-msvc
+          $first = (Get-FileHash -Algorithm SHA256 -LiteralPath target/ci-package-${{ github.run_id }}/submission-candidate.tar).Hash
+          $second = (Get-FileHash -Algorithm SHA256 -LiteralPath target/ci-package-${{ github.run_id }}/submission-candidate-copy.tar).Hash
           if ($first -ne $second) { throw "Repeated package creation was not byte-identical." }
 
       - name: Verify and extract Windows submission candidate
         run: |
-          python scripts/submission_package.py verify target/ci-submission-candidate.tar
-          python scripts/submission_package.py extract target/ci-submission-candidate.tar target/ci-extracted
+          python scripts/submission_package.py verify target/ci-package-${{ github.run_id }}/submission-candidate.tar
+          python scripts/submission_package.py extract target/ci-package-${{ github.run_id }}/submission-candidate.tar target/ci-package-${{ github.run_id }}/extracted
 
       - name: Verify packaged offline rebuild identity
         shell: pwsh
         run: |
-          cmake -S target/ci-extracted/submit_pkg -B target/ci-extracted/cmake-build
-          cmake --build target/ci-extracted/cmake-build --config Release
+          cmake -S target/ci-package-${{ github.run_id }}/extracted/submit_pkg -B target/ci-package-${{ github.run_id }}/extracted/cmake-build
+          cmake --build target/ci-package-${{ github.run_id }}/extracted/cmake-build --config Release
