@@ -113,4 +113,6 @@ All notable project changes are recorded in this file.
 
 ### Fixed
 
+- Made CI synthetic-log setup idempotent so a restored build directory cannot
+  stop the final package audit before TAR creation.
 - Restored Rust 1.85 CI compatibility for the PPM adapter.

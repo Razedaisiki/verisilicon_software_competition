@@ -86,8 +86,8 @@ jobs:
       - name: Create synthetic package-test log
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path target/ci-synthetic-ai-logs | Out-Null
-          Set-Content -Encoding ascii -Path target/ci-synthetic-ai-logs/NOT-A-REAL-SUBMISSION.txt -Value "Synthetic CI-only log for structural package testing."
+          New-Item -ItemType Directory -Path target/ci-synthetic-ai-logs -Force | Out-Null
+          Set-Content -Encoding ascii -LiteralPath target/ci-synthetic-ai-logs/NOT-A-REAL-SUBMISSION.txt -Value "Synthetic CI-only log for structural package testing."
 
       - name: Create and verify Windows submission candidate
         run: >-
