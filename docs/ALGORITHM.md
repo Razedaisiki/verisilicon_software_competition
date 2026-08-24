@@ -87,8 +87,8 @@ B = Y + round(454 (Cb - 128) / 256)
 ```
 
 These are project-selected Q8 approximations of full-range BT.601 equations.
-They are stored as source literals in `src/algorithm/color.rs`. They are not
-claimed to be organizer-supplied coefficients.
+They are stored as named source constants in `src/algorithm/color.rs`. They are
+not claimed to be organizer-supplied coefficients.
 
 ## Separable Bicubic 2x Scaling
 

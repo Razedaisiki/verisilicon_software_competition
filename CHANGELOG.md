@@ -96,6 +96,8 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- Promoted every RGB/YCbCr matrix coefficient, chroma offset, and Q8 rounding
+  value from inline numeric literals to documented named source constants.
 - Expanded submission README, algorithm provenance, and AI coding records with
   complete build/run/CLI guidance, an ASCII pipeline diagram, module principles,
   coefficient sources, representative prompts, and the reviewed iteration log.

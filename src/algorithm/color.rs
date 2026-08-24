@@ -2,6 +2,25 @@
 
 use crate::image::Rgb8;
 
+const Q8_SHIFT: u32 = 8;
+const Q8_ROUNDING_OFFSET: i32 = 1 << (Q8_SHIFT - 1);
+const CHROMA_OFFSET: i32 = 128;
+
+const RGB_TO_Y_RED_Q8: i32 = 77;
+const RGB_TO_Y_GREEN_Q8: i32 = 150;
+const RGB_TO_Y_BLUE_Q8: i32 = 29;
+const RGB_TO_CB_RED_Q8: i32 = -43;
+const RGB_TO_CB_GREEN_Q8: i32 = -85;
+const RGB_TO_CB_BLUE_Q8: i32 = 128;
+const RGB_TO_CR_RED_Q8: i32 = 128;
+const RGB_TO_CR_GREEN_Q8: i32 = -107;
+const RGB_TO_CR_BLUE_Q8: i32 = -21;
+
+const YCBCR_TO_RED_CR_Q8: i32 = 359;
+const YCBCR_TO_GREEN_CB_Q8: i32 = 88;
+const YCBCR_TO_GREEN_CR_Q8: i32 = 183;
+const YCBCR_TO_BLUE_CB_Q8: i32 = 454;
+
 /// One full-range BT.601 luma and chroma sample.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct YCbCr8 {
@@ -30,9 +49,11 @@ pub fn rgb_to_ycbcr(pixel: Rgb8) -> YCbCr8 {
     let red = i32::from(pixel.red);
     let green = i32::from(pixel.green);
     let blue = i32::from(pixel.blue);
-    let y = round_q8(77 * red + 150 * green + 29 * blue);
-    let cb = 128 + round_q8(-43 * red - 85 * green + 128 * blue);
-    let cr = 128 + round_q8(128 * red - 107 * green - 21 * blue);
+    let y = round_q8(RGB_TO_Y_RED_Q8 * red + RGB_TO_Y_GREEN_Q8 * green + RGB_TO_Y_BLUE_Q8 * blue);
+    let cb = CHROMA_OFFSET
+        + round_q8(RGB_TO_CB_RED_Q8 * red + RGB_TO_CB_GREEN_Q8 * green + RGB_TO_CB_BLUE_Q8 * blue);
+    let cr = CHROMA_OFFSET
+        + round_q8(RGB_TO_CR_RED_Q8 * red + RGB_TO_CR_GREEN_Q8 * green + RGB_TO_CR_BLUE_Q8 * blue);
     YCbCr8::new(clip_u8(y), clip_u8(cb), clip_u8(cr))
 }
 
@@ -47,19 +68,19 @@ pub fn rgb_to_ycbcr(pixel: Rgb8) -> YCbCr8 {
 #[must_use]
 pub fn ycbcr_to_rgb(pixel: YCbCr8) -> Rgb8 {
     let y = i32::from(pixel.y);
-    let cb = i32::from(pixel.cb) - 128;
-    let cr = i32::from(pixel.cr) - 128;
-    let red = y + round_q8(359 * cr);
-    let green = y - round_q8(88 * cb + 183 * cr);
-    let blue = y + round_q8(454 * cb);
+    let cb = i32::from(pixel.cb) - CHROMA_OFFSET;
+    let cr = i32::from(pixel.cr) - CHROMA_OFFSET;
+    let red = y + round_q8(YCBCR_TO_RED_CR_Q8 * cr);
+    let green = y - round_q8(YCBCR_TO_GREEN_CB_Q8 * cb + YCBCR_TO_GREEN_CR_Q8 * cr);
+    let blue = y + round_q8(YCBCR_TO_BLUE_CB_Q8 * cb);
     Rgb8::new(clip_u8(red), clip_u8(green), clip_u8(blue))
 }
 
 fn round_q8(value: i32) -> i32 {
     if value >= 0 {
-        (value + 128) >> 8
+        (value + Q8_ROUNDING_OFFSET) >> Q8_SHIFT
     } else {
-        -((-value + 128) >> 8)
+        -((-value + Q8_ROUNDING_OFFSET) >> Q8_SHIFT)
     }
 }
 
