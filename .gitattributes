@@ -1,0 +1,3 @@
+/submit_pkg/** -text
+/submit_pkg/bin/sr.exe binary
+/submit_pkg.tar binary

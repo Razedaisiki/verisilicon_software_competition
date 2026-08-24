@@ -6,6 +6,8 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- Added the final reviewable `submit_pkg/` tree, real Codex session log,
+  precompiled Windows executable, and uncompressed `submit_pkg.tar` to Git.
 - Added a repository and submission `rust-toolchain.toml` that pins exact Rust
   1.85.0 for reproducible Windows builds.
 - Added a non-overwriting `submit_pkg` staging command that prepares all fixed

@@ -28,6 +28,11 @@
 *.tmp
 *.temp
 
+# Preserve the final reviewable submission and archive in Git.
+!/submit_pkg/
+!/submit_pkg/**
+!/submit_pkg.tar
+
 # Editor and operating system clutter.
 .DS_Store
 Thumbs.db
