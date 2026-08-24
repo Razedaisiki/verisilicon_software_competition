@@ -96,6 +96,9 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
+- Expanded submission README, algorithm provenance, and AI coding records with
+  complete build/run/CLI guidance, an ASCII pipeline diagram, module principles,
+  coefficient sources, representative prompts, and the reviewed iteration log.
 - Reduced staged submission source to the Cargo files and modules compiled for
   `sr.exe`, excluding developer examples and external regression tests.
 
