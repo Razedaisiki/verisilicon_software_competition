@@ -353,9 +353,10 @@ python scripts/submission_package.py create target/submission-candidate.tar --bi
 python scripts/submission_package.py verify target/submission-candidate.tar
 ```
 
-The Windows package keeps the two required roles: `build.ps1` is the one-click
-build program, and `bin/sr.exe` is the precompiled executable used for standard
-evaluation-machine testing.
+The Windows package keeps the two required roles: `CMakeLists.txt` is the
+organizer-listed one-click source build entry, and `bin/sr.exe` is the
+precompiled executable used for standard evaluation-machine testing. The root
+`build.ps1` remains the repository development build command.
 See `docs/COMPLIANCE.md` for the
 evidence audit, `docs/SUBMISSION.md` for build/evaluation/package instructions
 and the official-package reconciliation checklist, `docs/EVALUATION.md` for

@@ -18,7 +18,7 @@ This document separates official software contest requirements from project deci
 | PDF-010 | Neural networks, pretrained models, and runtime model files are prohibited. | Confirmed | Software contest PDF | Audit source, package contents, and runtime file access. |
 | PDF-011 | Scoring includes objective quality, subjective quality, speed, and AI Coding evaluation. | Confirmed | Software contest PDF | Map evaluation evidence to all four scoring categories. |
 | PDF-012 | Admission requires at least 1 frame per second and quality at least equal to the prescribed bicubic baseline. | Confirmed | Software contest PDF | Run the official benchmark and quality comparison when supplied. |
-| PDF-013 | The Windows submission is an uncompressed TAR containing `submit_pkg/src/`, precompiled evaluation executable `bin/sr.exe`, one-click `build.ps1`, `doc/ALGORITHM.md`, `doc/AI_CODING.md`, `logs/`, and `README.md`. | Confirmed | Software contest PDF page 10 and Windows platform interpretation | Validate archive type, exact directory roles, rebuildability, records, and AI Coding logs. |
+| PDF-013 | The submission is an uncompressed TAR containing `submit_pkg/src/`, precompiled evaluation executable `bin/sr.exe`, a one-click build entry (`build.sh`, Makefile, or CMake), `doc/ALGORITHM.md`, `doc/AI_CODING.md`, `logs/`, and `README.md`. The Windows package selects `CMakeLists.txt`. | Confirmed | Software contest PDF page 10 and Windows platform interpretation | Validate archive type, exact directory roles, rebuildability, records, and AI Coding logs. |
 
 ## Organizer-confirmed evaluation facts
 
@@ -42,7 +42,7 @@ These choices are repository policy, not claims about the contest PDF.
 | PRJ-004 | Record each implementation milestone in `CHANGELOG.md`. | Adopted | Project milestone brief | Require an Unreleased entry during review. |
 | PRJ-005 | Use small atomic commits and GitHub Actions checks. | Adopted | Project milestone brief | Review commit scope and require format, lint, test, and build jobs. |
 | PRJ-006 | Preserve a deterministic scalar implementation as the correctness oracle for optimized CPU paths. | Adopted | Engineering decision | Compare optimized output byte-for-byte with scalar output. |
-| PRJ-007 | Maintain build, CI, and package execution for Windows only. | Adopted | User platform decision | Run the pinned MSVC target in Windows CI; keep one-click `build.ps1` and precompiled `bin/sr.exe`. |
+| PRJ-007 | Maintain build, CI, and package execution for Windows only. | Adopted | User platform decision | Run the pinned MSVC target in Windows CI; keep the package CMake entry and precompiled `bin/sr.exe`. |
 | PRJ-008 | Keep paired DIV2K preparation offline, local-only, split-explicit, hash-locked, and separate from Eval30 and input-only test images; default to the current 100-image validation workflow. | Adopted | Dataset preparation milestone | Validate the selected exact ID set, RGB8 PNG, HR=2xLR, deterministic PPM and manifests, atomic publication, and synthetic validation/train/all failures. |
 
 ## Provisional assumptions

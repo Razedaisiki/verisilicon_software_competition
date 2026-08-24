@@ -80,7 +80,8 @@ jobs:
           python scripts/submission_package.py stage target/ci-staging/submit_pkg --binary bin/sr.exe --target x86_64-pc-windows-msvc
           $logs = @(Get-ChildItem -LiteralPath target/ci-staging/submit_pkg/logs -Recurse -File)
           if ($logs.Count -ne 0) { throw "Staging must not invent conversation logs." }
-          & target/ci-staging/submit_pkg/build.ps1
+          cmake -S target/ci-staging/submit_pkg -B target/ci-staging/cmake-build
+          cmake --build target/ci-staging/cmake-build --config Release
 
       - name: Create synthetic package-test log
         shell: pwsh
@@ -109,4 +110,6 @@ jobs:
 
       - name: Verify packaged offline rebuild identity
         shell: pwsh
-        run: '& target/ci-extracted/submit_pkg/build.ps1'
+        run: |
+          cmake -S target/ci-extracted/submit_pkg -B target/ci-extracted/cmake-build
+          cmake --build target/ci-extracted/cmake-build --config Release

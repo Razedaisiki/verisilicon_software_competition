@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $sourceRoot = $PSScriptRoot
+$sourceDirectory = (Join-Path $sourceRoot "src").Replace('\', '/')
 $toolchainVersion = "1.85.0"
 $targetTriple = "x86_64-pc-windows-msvc"
 $targetDir = Join-Path $sourceRoot "target"
@@ -24,7 +25,7 @@ try {
         "link-arg=/Brepro",
         "-C",
         "target-feature=+crt-static",
-        "--remap-path-prefix=$sourceRoot=."
+        "--remap-path-prefix=$sourceDirectory=."
     ) -join $separator
     Push-Location $sourceRoot
     try {

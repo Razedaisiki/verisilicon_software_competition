@@ -20,7 +20,8 @@ from natural-language output.
 | Codex desktop agent | Requirements review, repository work, implementation, code review, tests, documentation, Git, and packaging |
 | `luna_worker` custom agent | Bounded delegated tasks with model `gpt-5.6-luna` and maximum reasoning effort; primary-agent review remained mandatory |
 | Rust 1.85 and Cargo | Dependency-free runtime implementation, formatting, linting, tests, release builds, and dependency inspection |
-| PowerShell | Windows-only one-click build, dataset workflows, evaluation commands, and reproducibility checks |
+| PowerShell | Windows-only repository build, dataset workflows, evaluation commands, and reproducibility checks |
+| CMake | Organizer-listed submission build entry, exact Rust validation, offline reconstruction, and binary-identity enforcement |
 | Python standard tooling | Development-only conversion, dataset validation, benchmark policy checks, and deterministic TAR creation |
 | Git and GitHub Actions | One logical commit per accepted step and automated Windows verification |
 

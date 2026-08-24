@@ -47,7 +47,7 @@ FIXED_FILES = {
     *(f"{PREFIX}/src/{name}" for name in SOURCE_FILES),
     *DOC_FILES,
     f"{PREFIX}/bin/sr.exe",
-    f"{PREFIX}/build.ps1",
+    f"{PREFIX}/CMakeLists.txt",
     f"{PREFIX}/README.md",
 }
 BASE_DIRS = {
@@ -120,61 +120,76 @@ def collect_logs(logs_root: Path) -> dict[str, bytes]:
     return payloads
 
 
-def build_script(target: str) -> bytes:
-    text = f'''$ErrorActionPreference = "Stop"
-$packageRoot = $PSScriptRoot
-$toolchainVersion = "{RUST_TOOLCHAIN}"
-$targetTriple = "{target}"
-$manifest = Join-Path $packageRoot "src\\Cargo.toml"
-$targetDir = Join-Path $packageRoot "build-target"
-$candidate = Join-Path $targetDir "$targetTriple\\release\\sr.exe"
-$rebuiltDir = Join-Path $packageRoot "rebuilt"
-$rebuilt = Join-Path $rebuiltDir "sr.exe"
-$packaged = Join-Path $packageRoot "bin\\sr.exe"
-$separator = [char]0x1f
-$previousOffline = $env:CARGO_NET_OFFLINE
-$previousIncremental = $env:CARGO_INCREMENTAL
-$previousRustFlags = $env:CARGO_ENCODED_RUSTFLAGS
+def cmake_lists(target: str) -> bytes:
+    text = f'''cmake_minimum_required(VERSION 3.20)
+project(verisilicon_sr_submission NONE)
 
-try {{
-    $actualRustc = & rustc "+$toolchainVersion" --version
-    if ($LASTEXITCODE -ne 0 -or $actualRustc -ne "rustc $toolchainVersion (4d91de4e4 2025-02-17)") {{
-        throw "Rust $toolchainVersion is required; received: $actualRustc"
-    }}
-    $env:CARGO_NET_OFFLINE = "true"
-    $env:CARGO_INCREMENTAL = "0"
-    $env:CARGO_ENCODED_RUSTFLAGS = @(
-        "-C",
-        "link-arg=/Brepro",
-        "-C",
-        "target-feature=+crt-static",
-        "--remap-path-prefix=$packageRoot\\src=."
-    ) -join $separator
-    cargo "+$toolchainVersion" build --offline --locked --release --target $targetTriple --manifest-path $manifest --target-dir $targetDir
-    if ($LASTEXITCODE -ne 0) {{
-        throw "Cargo release build failed with exit code $LASTEXITCODE."
-    }}
-}} finally {{
-    $env:CARGO_NET_OFFLINE = $previousOffline
-    $env:CARGO_INCREMENTAL = $previousIncremental
-    $env:CARGO_ENCODED_RUSTFLAGS = $previousRustFlags
-}}
-if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {{
-    throw "Expected rebuilt executable was not produced: $candidate"
-}}
-New-Item -ItemType Directory -Path $rebuiltDir -Force | Out-Null
-Copy-Item -LiteralPath $candidate -Destination $rebuilt -Force
-$expected = [IO.File]::ReadAllBytes($packaged)
-$actual = [IO.File]::ReadAllBytes($rebuilt)
-if ($expected.Length -ne $actual.Length) {{
-    throw "Rebuilt executable length differs from packaged bin/sr.exe."
-}}
-for ($index = 0; $index -lt $expected.Length; $index++) {{
-    if ($expected[$index] -ne $actual[$index]) {{
-        throw "Rebuilt executable differs from packaged bin/sr.exe at byte $index."
-    }}
-}}
-Write-Output "Offline rebuild is byte-identical to bin/sr.exe for $targetTriple."
+if(NOT WIN32)
+  message(FATAL_ERROR "This submission supports Windows only")
+endif()
+
+set(RUST_TOOLCHAIN "{RUST_TOOLCHAIN}")
+set(RUSTC_IDENTITY "rustc {RUST_TOOLCHAIN} (4d91de4e4 2025-02-17)")
+set(RUST_TARGET "{target}")
+set(MANIFEST "${{CMAKE_CURRENT_LIST_DIR}}/src/Cargo.toml")
+set(CARGO_TARGET_DIR "${{CMAKE_BINARY_DIR}}/cargo-target")
+set(CANDIDATE "${{CARGO_TARGET_DIR}}/${{RUST_TARGET}}/release/sr.exe")
+set(REBUILT_DIR "${{CMAKE_CURRENT_LIST_DIR}}/rebuilt")
+set(REBUILT "${{REBUILT_DIR}}/sr.exe")
+set(PACKAGED "${{CMAKE_CURRENT_LIST_DIR}}/bin/sr.exe")
+
+find_program(CARGO_EXECUTABLE NAMES cargo REQUIRED)
+find_program(RUSTC_EXECUTABLE NAMES rustc REQUIRED)
+
+execute_process(
+  COMMAND "${{RUSTC_EXECUTABLE}}" "+${{RUST_TOOLCHAIN}}" --version
+  RESULT_VARIABLE RUSTC_RESULT
+  OUTPUT_VARIABLE RUSTC_VERSION
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT RUSTC_RESULT EQUAL 0 OR NOT RUSTC_VERSION STREQUAL RUSTC_IDENTITY)
+  message(FATAL_ERROR "Exact ${{RUSTC_IDENTITY}} is required; received: ${{RUSTC_VERSION}}")
+endif()
+
+set(BUILD_SCRIPT "${{CMAKE_BINARY_DIR}}/BuildRust.cmake")
+set(BUILD_SCRIPT_CONTENT [=[
+string(ASCII 31 RUST_FLAG_SEPARATOR)
+set(ENV{{CARGO_NET_OFFLINE}} "true")
+set(ENV{{CARGO_INCREMENTAL}} "0")
+set(ENV{{CARGO_ENCODED_RUSTFLAGS}}
+  "-C${{RUST_FLAG_SEPARATOR}}link-arg=/Brepro${{RUST_FLAG_SEPARATOR}}-C${{RUST_FLAG_SEPARATOR}}target-feature=+crt-static${{RUST_FLAG_SEPARATOR}}--remap-path-prefix=@PACKAGE_ROOT@/src=."
+)
+execute_process(
+  COMMAND "@CARGO_EXECUTABLE@" "+@RUST_TOOLCHAIN@" build
+    --offline --locked --release
+    --target "@RUST_TARGET@"
+    --manifest-path "@MANIFEST@"
+    --target-dir "@CARGO_TARGET_DIR@"
+  RESULT_VARIABLE CARGO_RESULT
+  COMMAND_ERROR_IS_FATAL ANY
+)
+file(MAKE_DIRECTORY "@REBUILT_DIR@")
+file(COPY_FILE "@CANDIDATE@" "@REBUILT@" ONLY_IF_DIFFERENT)
+execute_process(
+  COMMAND "@CMAKE_COMMAND@" -E compare_files "@REBUILT@" "@PACKAGED@"
+  RESULT_VARIABLE COMPARE_RESULT
+)
+if(NOT COMPARE_RESULT EQUAL 0)
+  message(FATAL_ERROR "Rebuilt sr.exe differs from packaged bin/sr.exe")
+endif()
+message(STATUS "Offline rebuild is byte-identical to bin/sr.exe for @RUST_TARGET@")
+]=])
+set(PACKAGE_ROOT "${{CMAKE_CURRENT_LIST_DIR}}")
+string(CONFIGURE "${{BUILD_SCRIPT_CONTENT}}" BUILD_SCRIPT_CONTENT @ONLY)
+file(WRITE "${{BUILD_SCRIPT}}" "${{BUILD_SCRIPT_CONTENT}}")
+
+add_custom_target(sr ALL
+  COMMAND "${{CMAKE_COMMAND}}" -P "${{BUILD_SCRIPT}}"
+  BYPRODUCTS "${{CANDIDATE}}" "${{REBUILT}}"
+  COMMENT "Building sr.exe with Rust ${{RUST_TOOLCHAIN}} and verifying binary identity"
+  VERBATIM
+  USES_TERMINAL
+)
 '''
     return text.encode("ascii")
 
@@ -184,7 +199,8 @@ def package_readme(target: str) -> bytes:
 
 This directory is the Windows evaluation package for deterministic 2x RGB8
 super resolution. `bin/sr.exe` is the precompiled standard-test executable.
-`build.ps1` is the one-click source build and binary-identity check.
+`CMakeLists.txt` is the organizer-compatible source build and binary-identity
+check.
 
 ## Package Contents
 
@@ -192,7 +208,7 @@ super resolution. `bin/sr.exe` is the precompiled standard-test executable.
 submit_pkg/
 |-- src/                 Rust source, Cargo manifest, and lockfile
 |-- bin/sr.exe           Precompiled Windows evaluation executable
-|-- build.ps1            Offline one-click release build and byte comparison
+|-- CMakeLists.txt       CMake release build and byte comparison
 |-- doc/ALGORITHM.md     Pipeline, module principles, and coefficient sources
 |-- doc/AI_CODING.md     AI tools, key prompts, and iteration summary
 |-- logs/                Complete exported AI conversation records
@@ -203,18 +219,21 @@ submit_pkg/
 
 Declared Rust target: `{target}`
 
-Requirements are 64-bit Windows, exact Rust {RUST_TOOLCHAIN}, Cargo, and the
-declared MSVC target. The project has no third-party Rust dependencies. The
-release binary statically links the MSVC C runtime. From `submit_pkg`, run:
+Requirements are 64-bit Windows, CMake 3.20 or newer, exact Rust
+{RUST_TOOLCHAIN}, Cargo, and the declared MSVC target. The project has no
+third-party Rust dependencies. The release binary statically links the MSVC C
+runtime. From `submit_pkg`, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\\build.ps1
+cmake -S . -B cmake-build
+cmake --build cmake-build --config Release
 ```
 
-The script runs Cargo with `--offline --locked --release`, disables incremental
-compilation, enables reproducible MSVC linking, and remaps the source path. It
-writes the rebuilt executable to `rebuilt/sr.exe` and compares every byte with
-`bin/sr.exe`. A difference or build failure produces a nonzero exit status.
+CMake verifies the exact compiler identity, then runs Cargo with
+`--offline --locked --release`, disables incremental compilation, enables
+reproducible static-CRT MSVC linking, and remaps the source path. It writes the
+rebuilt executable to `rebuilt/sr.exe` and compares every byte with `bin/sr.exe`.
+A difference or build failure produces a nonzero exit status.
 
 ## Run the Precompiled Executable
 
@@ -350,7 +369,7 @@ def collect_fixed_payloads(binary: Path, target: str) -> dict[str, bytes]:
     for archive_name, relative in DOC_FILES.items():
         payloads[archive_name] = require_safe_repository_file(root, relative).read_bytes()
     payloads[f"{PREFIX}/bin/sr.exe"] = binary.read_bytes()
-    payloads[f"{PREFIX}/build.ps1"] = build_script(target)
+    payloads[f"{PREFIX}/CMakeLists.txt"] = cmake_lists(target)
     payloads[f"{PREFIX}/README.md"] = package_readme(target)
     return payloads
 
@@ -394,7 +413,7 @@ def create_package(output: Path, binary: Path, logs: Path, target: str) -> None:
                     if name in directories:
                         add_directory(archive, name)
                     else:
-                        mode = EXEC_MODE if name in (f"{PREFIX}/bin/sr.exe", f"{PREFIX}/build.ps1") else FILE_MODE
+                        mode = EXEC_MODE if name == f"{PREFIX}/bin/sr.exe" else FILE_MODE
                         add_file(archive, name, payloads[name], mode)
     except Exception:
         output.unlink(missing_ok=True)
@@ -446,15 +465,15 @@ def verify_package(package: Path) -> None:
         if directory_names != expected_directories:
             fail(f"archive directory membership mismatch: {sorted(directory_names ^ expected_directories)}")
         for member in members:
-            expected_mode = EXEC_MODE if member.isdir() or member.name in (f"{PREFIX}/bin/sr.exe", f"{PREFIX}/build.ps1") else FILE_MODE
+            expected_mode = EXEC_MODE if member.isdir() or member.name == f"{PREFIX}/bin/sr.exe" else FILE_MODE
             if (member.mode, member.mtime, member.uid, member.gid, member.uname, member.gname) != (expected_mode, FIXED_MTIME, 0, 0, "", ""):
                 fail(f"unexpected metadata: {member.name}")
             if member.pax_headers:
                 fail(f"extended TAR metadata is not allowed: {member.name}")
         target = read_target(archive)
-        build = archive.extractfile(f"{PREFIX}/build.ps1")
-        if build is None or build.read() != build_script(target):
-            fail("build.ps1 does not match the declared-target template")
+        build = archive.extractfile(f"{PREFIX}/CMakeLists.txt")
+        if build is None or build.read() != cmake_lists(target):
+            fail("CMakeLists.txt does not match the declared-target template")
         binary = archive.extractfile(f"{PREFIX}/bin/sr.exe")
         if binary is None or binary.read(2) != b"MZ":
             fail("packaged sr.exe is not a Windows PE executable")

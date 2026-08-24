@@ -98,8 +98,11 @@ All notable project changes are recorded in this file.
 
 ### Changed
 
-- Pinned both one-click build paths to exact Rust 1.85.0, enabled static MSVC
-  CRT linkage, and made unexpected compiler versions fail before compilation.
+- Replaced the submission-only PowerShell build entry with the organizer-listed
+  CMake format while retaining `build.ps1` for repository development builds.
+- Pinned both repository and submission build paths to exact Rust 1.85.0,
+  enabled static MSVC CRT linkage, and made unexpected compiler versions fail
+  before compilation.
 - Promoted every RGB/YCbCr matrix coefficient, chroma offset, and Q8 rounding
   value from inline numeric literals to documented named source constants.
 - Expanded submission README, algorithm provenance, and AI coding records with

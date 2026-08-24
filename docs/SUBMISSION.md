@@ -1,14 +1,15 @@
 # Windows Build and Submission Candidate Guide
 
 This repository maintains Windows only. The uncompressed TAR contains the two
-required evaluation roles: `build.ps1` is the one-click build program, and
-`bin/sr.exe` is the precompiled executable used by the evaluation machine for
-standard testing. Final packaging still requires real conversation exports and
-any organizer-specified archive filename or record schema.
+required evaluation roles: `CMakeLists.txt` is the organizer-listed one-click
+source build entry, and `bin/sr.exe` is the precompiled executable used by the
+evaluation machine for standard testing. Final packaging still requires any
+organizer-specified archive filename or record schema.
 
 ## Prerequisites
 
 - 64-bit Windows.
+- CMake 3.20 or newer.
 - Exact Rust 1.85.0 with the `x86_64-pc-windows-msvc` target.
 - Python 3 for validation and deterministic TAR creation.
 - PowerShell.
@@ -84,13 +85,14 @@ python scripts/submission_package.py stage submit_pkg --binary bin/sr.exe --targ
 python scripts/submission_package.py create target/submission-candidate.tar --binary bin/sr.exe --logs path/to/exported-ai-logs --target x86_64-pc-windows-msvc
 python scripts/submission_package.py verify target/submission-candidate.tar
 python scripts/submission_package.py extract target/submission-candidate.tar target/submission-review
-powershell -ExecutionPolicy Bypass -File .\target\submission-review\submit_pkg\build.ps1
+cmake -S .\target\submission-review\submit_pkg -B .\target\submission-review\cmake-build
+cmake --build .\target\submission-review\cmake-build --config Release
 ```
 
 Creation refuses to overwrite an existing archive. The TAR is uncompressed and
 uses sorted paths, fixed metadata, safe regular-file entries, English ASCII
-source and documents, executable metadata for the Windows binary and build
-entry point, and a fixed source allowlist. Verification rejects links, special
+source and documents, executable metadata for the Windows binary, and a fixed
+source allowlist. Verification rejects links, special
 entries, unsafe paths, Windows case collisions, unexpected members, non-PE
 executables, empty logs, and template changes.
 
@@ -98,9 +100,10 @@ Staging likewise refuses to overwrite an existing directory. It is an
 inspection workspace, not a valid final submission until real conversation
 exports have been placed under `logs/` and the strict TAR creator succeeds.
 
-The extracted `build.ps1` invokes Cargo with `--offline --locked --release` for
-the declared target. It rebuilds from `submit_pkg/src/` and compares every byte
-of the rebuilt executable with `submit_pkg/bin/sr.exe`.
+The extracted `CMakeLists.txt` verifies exact Rust 1.85.0, invokes Cargo with
+`--offline --locked --release` for the declared target, and enables static CRT
+linkage and reproducible MSVC linking. It rebuilds from `submit_pkg/src/` and
+compares every byte of the rebuilt executable with `submit_pkg/bin/sr.exe`.
 
 The candidate contains:
 
@@ -108,7 +111,7 @@ The candidate contains:
 submit_pkg/
 |-- src/
 |-- bin/sr.exe
-|-- build.ps1
+|-- CMakeLists.txt
 |-- doc/ALGORITHM.md
 |-- doc/AI_CODING.md
 |-- logs/

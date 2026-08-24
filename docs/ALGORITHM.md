@@ -195,5 +195,5 @@ per-frame pipelines to avoid nested oversubscription. Small batches may use
 inner channel parallelism when logical processors are available.
 
 Serial and parallel selected-pipeline outputs are regression-tested for exact
-byte equality. The packaged `build.ps1` also rebuilds from submitted source and
+byte equality. The packaged CMake build also rebuilds from submitted source and
 compares the result byte for byte with `bin/sr.exe`.
