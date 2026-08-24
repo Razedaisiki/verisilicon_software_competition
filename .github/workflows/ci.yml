@@ -74,6 +74,14 @@ jobs:
       - name: Verify reproducible PowerShell one-click build
         run: .\build.ps1
 
+      - name: Verify submission staging without conversation logs
+        shell: pwsh
+        run: |
+          python scripts/submission_package.py stage target/ci-staging/submit_pkg --binary bin/sr.exe --target x86_64-pc-windows-msvc
+          $logs = @(Get-ChildItem -LiteralPath target/ci-staging/submit_pkg/logs -Recurse -File)
+          if ($logs.Count -ne 0) { throw "Staging must not invent conversation logs." }
+          & target/ci-staging/submit_pkg/build.ps1
+
       - name: Create synthetic package-test log
         shell: pwsh
         run: |

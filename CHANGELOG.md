@@ -6,6 +6,9 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- Added a non-overwriting `submit_pkg` staging command that prepares all fixed
+  Windows submission files while leaving mandatory real conversation logs for
+  final packaging.
 - Added the English ASCII-only repository foundation.
 - Added requirement traceability and centralized provisional assumptions.
 - Added ignore rules for official assets, build products, generated outputs, and local tooling clutter.

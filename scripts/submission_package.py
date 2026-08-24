@@ -223,11 +223,7 @@ def parent_directories(names: set[str]) -> set[str]:
     return directories
 
 
-def create_package(output: Path, binary: Path, logs: Path, target: str) -> None:
-    if output.suffix.lower() != ".tar":
-        fail("output path must end in .tar")
-    if output.exists():
-        fail(f"refusing to overwrite existing package: {output}")
+def collect_fixed_payloads(binary: Path, target: str) -> dict[str, bytes]:
     validate_target(target)
     require_regular(binary, "Windows executable")
     if binary.name.lower() != "sr.exe" or binary.stat().st_size < 2:
@@ -244,6 +240,36 @@ def create_package(output: Path, binary: Path, logs: Path, target: str) -> None:
     payloads[f"{PREFIX}/bin/sr.exe"] = binary.read_bytes()
     payloads[f"{PREFIX}/build.ps1"] = build_script(target)
     payloads[f"{PREFIX}/README.md"] = package_readme(target)
+    return payloads
+
+
+def stage_package(destination: Path, binary: Path, target: str) -> None:
+    if destination.name != PREFIX:
+        fail(f"staging directory must be named {PREFIX}: {destination}")
+    if destination.exists():
+        fail(f"refusing to overwrite existing staging directory: {destination}")
+    payloads = collect_fixed_payloads(binary, target)
+    directories = parent_directories(set(payloads))
+    destination.mkdir(parents=True)
+    try:
+        for archive_name in sorted(directories - {PREFIX}):
+            relative = PurePosixPath(archive_name).relative_to(PREFIX)
+            destination.joinpath(*relative.parts).mkdir()
+        for archive_name, data in sorted(payloads.items()):
+            relative = PurePosixPath(archive_name).relative_to(PREFIX)
+            destination.joinpath(*relative.parts).write_bytes(data)
+    except Exception:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise
+    print(f"Staged Windows submission directory without conversation logs: {destination}")
+
+
+def create_package(output: Path, binary: Path, logs: Path, target: str) -> None:
+    if output.suffix.lower() != ".tar":
+        fail("output path must end in .tar")
+    if output.exists():
+        fail(f"refusing to overwrite existing package: {output}")
+    payloads = collect_fixed_payloads(binary, target)
     payloads.update(collect_logs(logs))
     directories = parent_directories(set(payloads))
     entries = sorted(directories | set(payloads))
@@ -363,6 +389,10 @@ def parser() -> argparse.ArgumentParser:
     create.add_argument("--binary", type=Path, required=True)
     create.add_argument("--logs", type=Path, required=True)
     create.add_argument("--target", required=True)
+    stage = commands.add_parser("stage")
+    stage.add_argument("destination", type=Path)
+    stage.add_argument("--binary", type=Path, required=True)
+    stage.add_argument("--target", required=True)
     verify = commands.add_parser("verify")
     verify.add_argument("package", type=Path)
     extract = commands.add_parser("extract")
@@ -376,6 +406,8 @@ def main() -> int:
     try:
         if args.command == "create":
             create_package(args.package, args.binary, args.logs, args.target)
+        elif args.command == "stage":
+            stage_package(args.destination, args.binary, args.target)
         elif args.command == "verify":
             verify_package(args.package)
         else:

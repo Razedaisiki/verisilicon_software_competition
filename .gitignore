@@ -18,6 +18,7 @@
 /output/
 /package/
 /pkg/
+/submit_pkg/
 /temp/
 /tmp/
 *.bin

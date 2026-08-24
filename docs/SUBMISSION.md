@@ -70,8 +70,14 @@ First export the complete AI conversation logs to a dedicated directory. The
 creator rejects missing, symlinked, or empty log directories and never invents
 logs.
 
+To prepare the exact submission directory before the real conversation export
+is available, use `stage`. The destination must be named `submit_pkg`; this
+creates every fixed payload and an empty `logs/` directory without weakening
+the final TAR checks.
+
 ```text
 powershell -ExecutionPolicy Bypass -File .\build.ps1
+python scripts/submission_package.py stage submit_pkg --binary bin/sr.exe --target x86_64-pc-windows-msvc
 python scripts/submission_package.py create target/submission-candidate.tar --binary bin/sr.exe --logs path/to/exported-ai-logs --target x86_64-pc-windows-msvc
 python scripts/submission_package.py verify target/submission-candidate.tar
 python scripts/submission_package.py extract target/submission-candidate.tar target/submission-review
@@ -84,6 +90,10 @@ source and documents, executable metadata for the Windows binary and build
 entry point, and a fixed source allowlist. Verification rejects links, special
 entries, unsafe paths, Windows case collisions, unexpected members, non-PE
 executables, empty logs, and template changes.
+
+Staging likewise refuses to overwrite an existing directory. It is an
+inspection workspace, not a valid final submission until real conversation
+exports have been placed under `logs/` and the strict TAR creator succeeds.
 
 The extracted `build.ps1` invokes Cargo with `--offline --locked --release` for
 the declared target. It rebuilds from `submit_pkg/src/` and compares every byte
